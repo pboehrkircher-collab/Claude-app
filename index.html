@@ -1,0 +1,648 @@
+<!doctype html><!--strip-->
+<html lang="de"><!--strip-->
+<head><!--strip-->
+<meta charset="utf-8"><!--strip-->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"><!--strip-->
+<meta name="apple-mobile-web-app-capable" content="yes"><!--strip-->
+<meta name="theme-color" content="#0e3a2b"><!--strip-->
+<link rel="manifest" href="manifest.json"><!--strip-->
+<title>Flick Golf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Manrope:wght@400;600;700&display=swap">
+<style>
+/* Layout: full-screen course canvas, leaderboard bar on top, status line at the bottom, cards as overlays. One deliberate look (clubhouse leaderboard), no theme switch. */
+:root{
+  --board:#0e3a2b;
+  --board-2:#175440;
+  --ink:#ffffff;
+  --muted:#a8c9b8;
+  --gold:#ffd23f;
+  --flag:#e63b2e;
+  --forest:#1f4a25;
+  --f-display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme: dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--forest);color:var(--ink);font-family:var(--f-body);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+#hud{position:fixed;top:0;left:0;right:0;z-index:2;pointer-events:none;
+  padding-top:calc(env(safe-area-inset-top,0px) + 8px);padding-bottom:8px;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));
+  background:linear-gradient(180deg,var(--board) 0%,rgba(14,58,43,.94) 100%);
+  box-shadow:0 2px 0 rgba(0,0,0,.25);display:grid;gap:6px}
+.hud-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:var(--f-display);font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:15px}
+.hud-top .hole{color:var(--gold)}
+.wind{display:flex;align-items:center;gap:6px;color:var(--ink)}
+.wind svg{width:18px;height:18px;transition:transform .4s}
+#board{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
+#board th{font-family:var(--f-display);font-weight:600;letter-spacing:.08em;color:var(--muted);text-align:right;padding:0 6px;font-size:12px}
+#board th:first-child{text-align:left}
+#board td{padding:2px 6px;text-align:right;font-family:var(--f-display);font-weight:600;font-size:16px;border-top:1px solid rgba(255,255,255,.08)}
+#board td.name{text-align:left;font-family:var(--f-body);font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+#board td.sum{color:var(--gold)}
+#board td.cur{background:rgba(255,210,63,.18);border-radius:4px}
+#board td.pen{color:#ff8b7f}
+#board td.ace{color:var(--gold)}
+#board tr.active td.name::after{content:" ◂";color:var(--gold)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px;box-shadow:0 0 0 1.5px #fff}
+
+#msg{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:2;pointer-events:none;
+  background:rgba(14,58,43,.9);border:1px solid rgba(255,255,255,.18);padding:8px 14px;border-radius:999px;font-weight:700;font-size:14px;white-space:nowrap;max-width:calc(100vw - 32px);overflow:hidden;text-overflow:ellipsis}
+#msg.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{background:rgba(230,59,46,.92)}}
+
+.overlay{position:fixed;inset:0;z-index:5;display:grid;place-items:center;background:rgba(8,30,22,.55);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(env(safe-area-inset-top,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto}
+.card{width:min(420px,100%);background:var(--board);border:2px solid var(--board-2);border-radius:14px;padding:22px 20px;box-shadow:0 18px 40px rgba(0,0,0,.45);display:grid;gap:14px}
+.card h1,.card h2{font-family:var(--f-display);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin:0;line-height:.95;text-wrap:balance}
+.card h1{font-size:54px}
+.card h1 span{color:var(--gold)}
+.card h2{font-size:34px}
+.card p{margin:0;color:var(--muted);line-height:1.45}
+.eyebrow{font-family:var(--f-display);font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-size:13px}
+.names{display:grid;gap:8px}
+.names label{display:flex;align-items:center;gap:10px;background:var(--board-2);border-radius:10px;padding:4px 12px}
+.names input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font:700 16px var(--f-body);padding:10px 0;outline:none}
+.names label:focus-within{box-shadow:0 0 0 2px var(--gold)}
+.how{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--ink);line-height:1.4;font-size:14px}
+.how b{color:var(--gold)}
+button.go{appearance:none;border:0;border-radius:10px;background:var(--gold);color:#1b2a12;font:800 20px var(--f-display);letter-spacing:.08em;text-transform:uppercase;padding:14px 18px;cursor:pointer}
+button.go:focus-visible{outline:3px solid #fff;outline-offset:2px}
+button.go:active{transform:translateY(1px)}
+.big{font-family:var(--f-display);font-weight:800;font-size:72px;line-height:.9;color:var(--gold);font-variant-numeric:tabular-nums}
+.big small{font-size:30px;color:var(--ink)}
+.rank{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.rank li{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;background:var(--board-2);border-radius:10px;padding:10px 12px}
+.rank .pos{font:800 26px var(--f-display);color:var(--muted)}
+.rank li:first-child .pos{color:var(--gold)}
+.rank .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank .tot{font:800 22px var(--f-display);font-variant-numeric:tabular-nums}
+.rank .det{grid-column:2/4;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion: reduce){#msg.pulse{animation:none}.wind svg{transition:none}}
+</style>
+</head><!--strip-->
+<body><!--strip-->
+<canvas id="c"></canvas>
+
+<div id="hud" hidden>
+  <div class="hud-top">
+    <span id="roundLbl">Runde 1/3</span>
+    <span class="hole" id="holeLbl">Loch 0 m</span>
+    <span class="wind"><svg viewBox="0 0 24 24" id="windArrow" aria-hidden="true"><path d="M12 2 L19 12 H14 V22 H10 V12 H5 Z" fill="#ffffff"/></svg><span id="windLbl">0 m/s</span></span>
+  </div>
+  <table id="board"><thead><tr><th>Spieler</th><th>R1</th><th>R2</th><th>R3</th><th>Σ m</th></tr></thead><tbody id="boardBody"></tbody></table>
+</div>
+
+<div id="msg" hidden></div>
+
+<div class="overlay" id="setup">
+  <form class="card" id="setupForm">
+    <div class="eyebrow">3 Spieler · 3 Runden</div>
+    <h1>Flick<br><span>Golf</span></h1>
+    <p>Schnipp den Ball so nah wie möglich an die Fahne. Wer nach drei Schlägen die kleinste Gesamtdistanz hat, gewinnt.</p>
+    <div class="names">
+      <label><span class="dot" style="background:#e63b2e"></span><input id="n0" maxlength="14" value="Spieler 1" aria-label="Name Spieler 1"></label>
+      <label><span class="dot" style="background:#2f7de1"></span><input id="n1" maxlength="14" value="Spieler 2" aria-label="Name Spieler 2"></label>
+      <label><span class="dot" style="background:#f2c230"></span><input id="n2" maxlength="14" value="Spieler 3" aria-label="Name Spieler 3"></label>
+    </div>
+    <ol class="how">
+      <li><b>Abschlag:</b> Finger auf den Platz und schnell nach oben wischen. Tempo = Kraft, Richtung = Ziel.</li>
+      <li><b>Effet:</b> Solange der Ball fliegt, einmal wischen. Seitlich = Kurve, nach unten = Backspin, nach oben = Topspin.</li>
+      <li><b>Reihenfolge:</b> Jeder schlägt einmal pro Runde, dann geht es mit Runde 2 weiter.</li>
+    </ol>
+    <p>Wasser oder Aus zählen 50 m Strafe. Eingelocht zählt 0 m.</p>
+    <button class="go" type="submit">Spiel starten</button>
+  </form>
+</div>
+
+<div class="overlay" id="intro" hidden>
+  <div class="card">
+    <div class="eyebrow" id="introEyebrow">Loch 1</div>
+    <h2 id="introTitle">Runde 1</h2>
+    <p id="introText"></p>
+    <button class="go" id="introBtn" type="button">Los geht's</button>
+  </div>
+</div>
+
+<div class="overlay" id="result" hidden>
+  <div class="card">
+    <div class="eyebrow" id="resEyebrow">Spieler</div>
+    <div class="big" id="resBig">0,0 <small>m</small></div>
+    <p id="resText">zur Fahne</p>
+    <button class="go" id="resBtn" type="button">Weiter</button>
+  </div>
+</div>
+
+<div class="overlay" id="over" hidden>
+  <div class="card">
+    <div class="eyebrow">Endstand</div>
+    <h2 id="winTitle">Sieger</h2>
+    <ol class="rank" id="rank"></ol>
+    <button class="go" id="againBtn" type="button">Neues Spiel</button>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const cvs = $('c'), ctx = cvs.getContext('2d');
+const PCOL = ['#e63b2e', '#2f7de1', '#f2c230'];
+const ROUNDS = 3, NP = 3;
+const G = 9.81, TS = 1.7, WK = 0.32, SPK = 2.6, PEN = 50, OBX = 38, FWH = 12, LOFT = 28 * Math.PI / 180;
+const HOLE_R = 0.32;
+
+let W = 0, H = 0, DPR = 1;
+let players = [], scores = [], round = 0, turn = 0, hole = null, wind = { x: 0, y: 0, s: 0 };
+let state = 'setup', ball = null, rest = [], hazardOrder = [], tNow = 0;
+let drag = null, spinDrag = null;
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmt = v => v.toFixed(1).replace('.', ',');
+
+/* ---------- Sound (starts after first tap) ---------- */
+let AC = null;
+function audio() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } } if (AC && AC.state === 'suspended') AC.resume(); }
+function tone(f, d, type = 'sine', vol = .25, f2) {
+  if (!AC) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + d);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + .02);
+}
+function noise(d, freq, vol = .3) {
+  if (!AC) return; const t = AC.currentTime, n = Math.floor(AC.sampleRate * d), buf = AC.createBuffer(1, n, AC.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 2;
+  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq; g.gain.value = vol;
+  s.connect(f).connect(g).connect(AC.destination); s.start(t);
+}
+const sHit = () => { noise(.06, 2400, .5); tone(1200, .07, 'triangle', .2, 500); };
+const sLand = () => tone(140, .12, 'sine', .3, 60);
+const sSplash = () => noise(.5, 700, .5);
+const sCup = () => { tone(880, .18, 'triangle', .25); setTimeout(() => tone(1320, .35, 'triangle', .25), 140); };
+const sWhoosh = () => noise(.25, 1200, .18);
+
+/* ---------- Course ---------- */
+function inEll(e, x, y) {
+  const c = Math.cos(-e.rot || 0), s = Math.sin(-e.rot || 0), dx = x - e.x, dy = y - e.y;
+  const u = dx * c - dy * s, v = dx * s + dy * c;
+  return (u * u) / (e.rx * e.rx) + (v * v) / (e.ry * e.ry) <= 1;
+}
+function newHole() {
+  const L = Math.round(rnd(112, 148));
+  const px = rnd(-9, 9);
+  const green = { x: px + rnd(-2.5, 2.5), y: L + rnd(-1.5, 2.5), rx: rnd(12, 15), ry: rnd(10, 12.5), rot: rnd(-.4, .4) };
+  const ctrl = { x: rnd(-16, 16), y: L * .5 };
+  const fw = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t;
+    fw.push({ x: b * ctrl.x + c * green.x, y: a * -4 + b * ctrl.y + c * (green.y - 5) });
+  }
+  const bunkers = [];
+  const a0 = rnd(0, Math.PI * 2);
+  [0, rnd(2, 3.6)].forEach(off => {
+    const ang = a0 + off;
+    bunkers.push({ x: green.x + Math.cos(ang) * (green.rx + 2.5), y: green.y + Math.sin(ang) * (green.ry + 2.5), rx: rnd(4.5, 6.5), ry: rnd(2.6, 3.8), rot: ang + Math.PI / 2 });
+  });
+  const fp = fw[25], side = Math.random() < .5 ? -1 : 1;
+  bunkers.push({ x: fp.x + side * rnd(9, 12), y: fp.y, rx: rnd(3.5, 5), ry: rnd(5, 7), rot: rnd(-.3, .3) });
+
+  const water = [];
+  const kind = hazardOrder[round] || 'none';
+  if (kind === 'pond') {
+    const p = fw[20], sd = -side;
+    water.push({ x: clamp(p.x + sd * rnd(17, 21), -30, 30), y: p.y, rx: rnd(8, 10), ry: rnd(13, 17), rot: rnd(-.3, .3) });
+  } else if (kind === 'creek') {
+    water.push({ x: green.x, y: green.y - green.ry - 10, rx: 34, ry: 3.6, rot: rnd(-.12, .12) });
+  }
+
+  const trees = [];
+  for (let i = 0; i < 7; i++) {
+    const sd = i % 2 ? 1 : -1;
+    trees.push({ x: sd * rnd(29, 35), y: rnd(25, L + 22), r: rnd(2.2, 3.4), play: true });
+  }
+  const deco = [];
+  for (let i = 0; i < 130; i++) {
+    const sd = Math.random() < .5 ? -1 : 1;
+    deco.push({ x: sd * rnd(41, 95), y: rnd(-40, L + 70), r: rnd(2.5, 5) });
+  }
+  for (let i = 0; i < 30; i++) deco.push({ x: rnd(-40, 40), y: rnd(L + 33, L + 70), r: rnd(2.5, 5) });
+  deco.sort((a, b) => b.y - a.y);
+
+  hole = { L, pin: { x: px, y: L }, green, fw, bunkers, water, trees, deco, kind };
+  hole.fwPoly = buildFwPoly(fw);
+  const wa = rnd(0, Math.PI * 2), ws = Math.random() < .15 ? 0 : rnd(1, 5.5);
+  wind = { x: Math.sin(wa) * ws, y: Math.cos(wa) * ws, s: ws, a: wa };
+}
+function buildFwPoly(fw) {
+  const L = [], R = [];
+  for (let i = 0; i < fw.length; i++) {
+    const p = fw[i], q = fw[Math.min(fw.length - 1, i + 1)], o = fw[Math.max(0, i - 1)];
+    let dx = q.x - o.x, dy = q.y - o.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    L.push({ x: p.x - dy * FWH, y: p.y + dx * FWH }); R.push({ x: p.x + dy * FWH, y: p.y - dx * FWH });
+  }
+  return L.concat(R.reverse());
+}
+function fwDist(x, y) {
+  const fw = hole.fw; let best = 1e9;
+  for (let i = 0; i < fw.length - 1; i++) {
+    const a = fw[i], b = fw[i + 1], vx = b.x - a.x, vy = b.y - a.y;
+    const t = clamp(((x - a.x) * vx + (y - a.y) * vy) / (vx * vx + vy * vy), 0, 1);
+    const d = Math.hypot(x - a.x - vx * t, y - a.y - vy * t); if (d < best) best = d;
+  }
+  return best;
+}
+function surf(x, y) {
+  if (Math.abs(x) > OBX || y > hole.L + 30 || y < -12) return 'ob';
+  for (const w of hole.water) if (inEll(w, x, y)) return 'water';
+  for (const b of hole.bunkers) if (inEll(b, x, y)) return 'bunker';
+  if (inEll(hole.green, x, y)) return 'green';
+  if (Math.abs(x) < 4 && y > -3 && y < 3) return 'fairway';
+  if (fwDist(x, y) < FWH) return 'fairway';
+  return 'rough';
+}
+const FRIC = { green: 1.5, fairway: 3.0, rough: 7.5, bunker: 22, ob: 4, water: 50 };
+const REST = { green: .32, fairway: .38, rough: .22, bunker: .04, ob: .3 };
+const KEEP = { green: .62, fairway: .7, rough: .45, bunker: .12, ob: .5 };
+const SNAME = { green: 'Grün', fairway: 'Fairway', rough: 'Rough', bunker: 'Bunker', water: 'Wasser', ob: 'Aus' };
+
+/* ---------- Turn flow ---------- */
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function startGame(names) {
+  players = names; scores = names.map(() => Array(ROUNDS).fill(null));
+  round = 0; turn = 0; hazardOrder = shuffle(['none', 'pond', 'creek']);
+  newHole(); rest = [];
+  $('hud').hidden = false; renderBoard(); showIntro();
+}
+function windText() {
+  if (wind.s < .3) return 'windstill';
+  const dirs = ['nach vorn', 'nach vorn rechts', 'nach rechts', 'nach hinten rechts', 'zurück', 'nach hinten links', 'nach links', 'nach vorn links'];
+  const i = Math.round(((wind.a % (Math.PI * 2)) / (Math.PI * 2)) * 8) % 8;
+  return fmt(wind.s) + ' m/s ' + dirs[i];
+}
+function showIntro() {
+  state = 'intro';
+  const hz = { none: 'Nur Bunker rund ums Grün.', pond: 'Achtung: Teich neben dem Fairway.', creek: 'Achtung: Bach direkt vor dem Grün.' }[hole.kind];
+  $('introEyebrow').textContent = 'Loch ' + (round + 1) + ' · ' + hole.L + ' m';
+  $('introTitle').textContent = 'Runde ' + (round + 1);
+  $('introText').textContent = hz + ' Wind: ' + windText() + '. ' + players[turn] + ' beginnt.';
+  $('intro').hidden = false; updateHud();
+}
+function beginTurn() {
+  ball = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, side: 0, back: 0, spun: false, first: true, trail: [] };
+  state = 'aim'; drag = null; spinDrag = null;
+  updateHud(); renderBoard();
+  say(players[turn] + ': nach oben wischen zum Abschlag');
+}
+function say(t, pulse) { const m = $('msg'); m.hidden = false; m.textContent = t; m.classList.toggle('pulse', !!pulse); }
+function updateHud() {
+  $('roundLbl').textContent = 'Runde ' + (round + 1) + '/' + ROUNDS;
+  $('holeLbl').textContent = 'Loch ' + hole.L + ' m';
+  $('windLbl').textContent = wind.s < .3 ? 'still' : fmt(wind.s) + ' m/s';
+  $('windArrow').style.transform = 'rotate(' + (wind.a * 180 / Math.PI) + 'deg)';
+  $('windArrow').style.opacity = wind.s < .3 ? .3 : 1;
+}
+function total(p) { return scores[p].reduce((a, v) => a + (v ? v.d : 0), 0); }
+function renderBoard() {
+  const tb = $('boardBody'); tb.innerHTML = '';
+  players.forEach((n, p) => {
+    const tr = document.createElement('tr');
+    if (p === turn && state !== 'over') tr.className = 'active';
+    const td0 = document.createElement('td'); td0.className = 'name';
+    const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = PCOL[p];
+    td0.append(dot, document.createTextNode(n)); tr.append(td0);
+    for (let r = 0; r < ROUNDS; r++) {
+      const td = document.createElement('td'); const v = scores[p][r];
+      td.textContent = v ? fmt(v.d) : '–';
+      if (v && v.kind !== 'rest' && v.kind !== 'holed') td.classList.add('pen');
+      if (v && v.kind === 'holed') td.classList.add('ace');
+      if (r === round && p === turn && state !== 'over') td.classList.add('cur');
+      tr.append(td);
+    }
+    const ts = document.createElement('td'); ts.className = 'sum'; ts.textContent = fmt(total(p)); tr.append(ts);
+    tb.append(tr);
+  });
+}
+function shoot(power, ang) {
+  const D = power * 165, v = Math.sqrt(D * G / Math.sin(2 * LOFT)), hv = v * Math.cos(LOFT);
+  ball.vx = hv * Math.sin(ang); ball.vy = hv * Math.cos(ang); ball.vz = v * Math.sin(LOFT);
+  ball.z = .01; ball.power = power;
+  state = 'flight'; sHit();
+  say('Jetzt wischen für Effet!', true);
+}
+function applySpin(dx, dy) {
+  ball.side = clamp(dx / (W * .35), -1, 1);
+  ball.back = clamp(dy / (H * .28), -1, 1);
+  ball.spun = true; sWhoosh();
+  const parts = [];
+  if (Math.abs(ball.side) > .08) parts.push((ball.side > 0 ? 'Kurve rechts ' : 'Kurve links ') + Math.round(Math.abs(ball.side) * 100) + '%');
+  if (Math.abs(ball.back) > .08) parts.push((ball.back > 0 ? 'Backspin ' : 'Topspin ') + Math.round(Math.abs(ball.back) * 100) + '%');
+  say(parts.length ? 'Effet: ' + parts.join(' · ') : 'Kein Effet');
+}
+function pinDist(x, y) { return Math.hypot(x - hole.pin.x, y - hole.pin.y); }
+function finish(kind) {
+  if (state === 'done') return;
+  state = 'done';
+  let d = pinDist(ball.x, ball.y), text = 'zur Fahne · liegt im ' + SNAME[surf(ball.x, ball.y)];
+  if (kind === 'holed') { d = 0; text = 'Eingelocht! Besser geht es nicht.'; sCup(); }
+  else if (kind === 'water') { d = PEN; text = 'Ball im Wasser: 50 m Strafe.'; sSplash(); }
+  else if (kind === 'ob') { d = PEN; text = 'Ball im Aus: 50 m Strafe.'; }
+  scores[turn][round] = { d, kind };
+  if (kind === 'rest' || kind === 'holed') rest.push({ x: ball.x, y: ball.y, p: turn, holed: kind === 'holed' });
+  renderBoard();
+  say(players[turn] + ': ' + fmt(d) + ' m');
+  setTimeout(() => {
+    $('resEyebrow').textContent = players[turn] + ' · Runde ' + (round + 1);
+    $('resBig').innerHTML = ''; $('resBig').append(document.createTextNode(fmt(d) + ' '));
+    const sm = document.createElement('small'); sm.textContent = 'm'; $('resBig').append(sm);
+    $('resText').textContent = text;
+    const last = turn === NP - 1 && round === ROUNDS - 1;
+    $('resBtn').textContent = last ? 'Endstand zeigen' : (turn === NP - 1 ? 'Weiter zu Runde ' + (round + 2) : 'Weiter: ' + players[turn + 1]);
+    $('result').hidden = false; $('resBtn').focus({ preventScroll: true });
+  }, 750);
+}
+function nextTurn() {
+  $('result').hidden = true;
+  turn++;
+  if (turn >= NP) {
+    turn = 0; round++;
+    if (round >= ROUNDS) return gameOver();
+    newHole(); rest = []; renderBoard(); showIntro(); return;
+  }
+  beginTurn();
+}
+function gameOver() {
+  state = 'over'; $('msg').hidden = true; renderBoard();
+  const order = players.map((n, p) => ({ n, p, t: total(p) })).sort((a, b) => a.t - b.t);
+  const ol = $('rank'); ol.innerHTML = '';
+  let pos = 0, prev = null;
+  order.forEach((o, i) => {
+    if (prev === null || Math.abs(o.t - prev) > 1e-9) pos = i + 1; prev = o.t;
+    const li = document.createElement('li');
+    const a = document.createElement('span'); a.className = 'pos'; a.textContent = pos + '.';
+    const b = document.createElement('span'); b.className = 'nm';
+    const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = PCOL[o.p];
+    b.append(dot, document.createTextNode(o.n));
+    const c = document.createElement('span'); c.className = 'tot'; c.textContent = fmt(o.t) + ' m';
+    const d = document.createElement('span'); d.className = 'det'; d.textContent = scores[o.p].map((v, r) => 'R' + (r + 1) + ' ' + fmt(v.d)).join(' · ');
+    li.append(a, b, c, d); ol.append(li);
+  });
+  const winners = order.filter(o => Math.abs(o.t - order[0].t) < 1e-9).map(o => o.n);
+  $('winTitle').textContent = winners.length > 1 ? 'Gleichstand: ' + winners.join(' & ') : winners[0] + ' gewinnt!';
+  $('over').hidden = false;
+  if (winners.length) sCup();
+}
+
+/* ---------- Physics ---------- */
+function treeHit() {
+  if (ball.z > 9) return;
+  for (const t of hole.trees) {
+    const dx = ball.x - t.x, dy = ball.y - t.y, d = Math.hypot(dx, dy);
+    if (d < t.r && d > 0) {
+      const nx = dx / d, ny = dy / d, dot = ball.vx * nx + ball.vy * ny;
+      if (dot < 0) { ball.vx = (ball.vx - 2 * dot * nx) * .3; ball.vy = (ball.vy - 2 * dot * ny) * .3; ball.vz *= .3; sLand(); }
+      ball.x = t.x + nx * t.r; ball.y = t.y + ny * t.r;
+    }
+  }
+}
+function step(dt) {
+  const b = ball;
+  if (b.z > 0 || b.vz > 0) {
+    let ax = wind.x * WK, ay = wind.y * WK;
+    const hv = Math.hypot(b.vx, b.vy);
+    if (hv > .5) { ax += (b.vy / hv) * b.side * SPK; ay += (-b.vx / hv) * b.side * SPK; }
+    b.vx += ax * dt; b.vy += ay * dt; b.vz -= G * dt;
+    b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    treeHit();
+    if (b.z <= 0) {
+      b.z = 0;
+      const s = surf(b.x, b.y);
+      if (s === 'water') return finish('water');
+      if (s === 'ob') return finish('ob');
+      if (pinDist(b.x, b.y) < HOLE_R && Math.hypot(b.vx, b.vy) < 9) { b.x = hole.pin.x; b.y = hole.pin.y; return finish('holed'); }
+      if (-b.vz > 1.5) {
+        b.vz = -b.vz * REST[s]; b.vx *= KEEP[s]; b.vy *= KEEP[s];
+        if (b.first) {
+          const f = clamp(1 - .95 * b.back, -.3, 1.6);
+          b.vx *= f; b.vy *= f; b.first = false; b.side *= .2;
+          if (state === 'flight') { state = 'roll'; if (!b.spun) say('Rollt …'); }
+        }
+        sLand();
+        if (b.vz < .6) b.vz = 0;
+      } else b.vz = 0;
+    }
+  } else {
+    const s = surf(b.x, b.y);
+    if (s === 'water') return finish('water');
+    if (s === 'ob') return finish('ob');
+    const sp = Math.hypot(b.vx, b.vy);
+    const d = pinDist(b.x, b.y);
+    if (d < HOLE_R && sp < 4.5) { b.x = hole.pin.x; b.y = hole.pin.y; return finish('holed'); }
+    if (d < HOLE_R * 1.6 && sp >= 4.5) { // lip: nudge sideways
+      const nx = (b.x - hole.pin.x) / (d || 1), ny = (b.y - hole.pin.y) / (d || 1);
+      b.vx += nx * 2 * dt * 60 * .02; b.vy += ny * 2 * dt * 60 * .02;
+    }
+    const ns = Math.max(0, sp - FRIC[s] * dt);
+    if (ns < .04) { b.vx = b.vy = 0; return finish('rest'); }
+    b.vx *= ns / sp; b.vy *= ns / sp;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    treeHit();
+  }
+  if (state === 'roll' || state === 'flight') {
+    if (Math.random() < .5) b.trail.push({ x: b.x, y: b.y, z: b.z });
+    if (b.trail.length > 400) b.trail.shift();
+  }
+}
+
+/* ---------- Rendering ---------- */
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cvs.clientWidth; H = cvs.clientHeight;
+  cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
+}
+function camera() {
+  const top = $('hud').hidden ? 20 : $('hud').getBoundingClientRect().bottom + 10;
+  const bot = 64;
+  const L = hole.L;
+  const s = Math.min(W / 84, (H - top - bot) / (L + 38));
+  return { s, ox: W / 2, oy: H - bot - 8 * s };
+}
+function ellipse(e, pad = 0) { ctx.beginPath(); ctx.ellipse(e.x, e.y, e.rx + pad, e.ry + pad, e.rot || 0, 0, Math.PI * 2); }
+function drawWorld(s, inset) {
+  const h = hole, px = 1 / s;
+  // rough with mowing bands
+  ctx.fillStyle = '#3d7a37'; ctx.fillRect(-120, -60, 240, h.L + 160);
+  ctx.fillStyle = 'rgba(255,255,255,.035)';
+  for (let y = -60; y < h.L + 100; y += 16) ctx.fillRect(-OBX, y, OBX * 2, 8);
+  // out of bounds
+  ctx.fillStyle = '#2b5a2c';
+  ctx.fillRect(-120, -60, 120 - OBX, h.L + 160); ctx.fillRect(OBX, -60, 120 - OBX, h.L + 160); ctx.fillRect(-OBX, h.L + 30, OBX * 2, 100);
+  // OB stakes
+  ctx.fillStyle = '#ffffff';
+  for (let y = -10; y <= h.L + 30; y += 10) { ctx.fillRect(-OBX - .5 * px * 3, y, 3 * px, 3 * px); ctx.fillRect(OBX - .5 * px * 3, y, 3 * px, 3 * px); }
+  // fairway
+  const poly = h.fwPoly;
+  ctx.beginPath(); poly.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = '#4f9645'; ctx.stroke();
+  ctx.fillStyle = '#5ea94f'; ctx.fill(); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,.06)';
+  for (let y = -10; y < h.L + 20; y += 8) ctx.fillRect(-60, y, 120, 4);
+  ctx.restore();
+  // tee
+  ctx.fillStyle = '#6cb95c'; ctx.fillRect(-4, -3, 8, 6);
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(-3, 1.5, 2.2 * px, 0, 7); ctx.arc(3, 1.5, 2.2 * px, 0, 7); ctx.fill();
+  // water
+  h.water.forEach(w => {
+    ellipse(w, .8); ctx.fillStyle = '#3e8a52'; ctx.fill();
+    ellipse(w); ctx.fillStyle = '#2f7fbf'; ctx.fill();
+    ctx.save(); ellipse(w); ctx.clip(); ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1.2 * px;
+    for (let i = -3; i <= 3; i++) { const yy = w.y + i * w.ry / 3.5; ctx.beginPath(); for (let x = w.x - w.rx; x < w.x + w.rx; x += 1) ctx.lineTo(x, yy + Math.sin(x * .6 + tNow * 2 + i) * .35); ctx.stroke(); }
+    ctx.restore();
+  });
+  // green
+  const g = h.green;
+  ellipse(g, 1.6); ctx.fillStyle = '#6bbd5a'; ctx.fill();
+  ctx.save(); ellipse(g); ctx.fillStyle = '#86d672'; ctx.fill(); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  for (let x = g.x - 30; x < g.x + 30; x += 4) { ctx.beginPath(); ctx.moveTo(x, g.y - 20); ctx.lineTo(x + 2, g.y - 20); ctx.lineTo(x + 12, g.y + 20); ctx.lineTo(x + 10, g.y + 20); ctx.fill(); }
+  ctx.restore();
+  // bunkers
+  h.bunkers.forEach(b => { ellipse(b, .5); ctx.fillStyle = '#cdb67a'; ctx.fill(); ellipse(b); ctx.fillStyle = '#ecdcab'; ctx.fill(); });
+  // hole
+  const pin = h.pin;
+  ctx.fillStyle = '#10210f'; ctx.beginPath(); ctx.arc(pin.x, pin.y, Math.max(HOLE_R, 2 * px), 0, 7); ctx.fill();
+  // trees (shadow then crown)
+  const drawTree = t => {
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.arc(t.x + t.r * .35, t.y - t.r * .35, t.r, 0, 7); ctx.fill();
+    ctx.fillStyle = '#1f5a28'; ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2f7535'; ctx.beginPath(); ctx.arc(t.x - t.r * .25, t.y + t.r * .25, t.r * .6, 0, 7); ctx.fill();
+  };
+  h.deco.forEach(drawTree); h.trees.forEach(drawTree);
+  // resting balls of earlier players
+  rest.forEach(r => { if (!r.holed) drawBall(r.x, r.y, 0, PCOL[r.p], px, true); });
+  // flag
+  const pole = 26 * px, wave = Math.sin(tNow * 4) * 1.5 * px;
+  ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1.5 * px; ctx.beginPath(); ctx.moveTo(pin.x, pin.y); ctx.lineTo(pin.x + pole * .5, pin.y - pole * .3); ctx.stroke();
+  ctx.strokeStyle = '#f4f4f4'; ctx.lineWidth = 1.6 * px; ctx.beginPath(); ctx.moveTo(pin.x, pin.y); ctx.lineTo(pin.x, pin.y + pole); ctx.stroke();
+  ctx.fillStyle = '#e63b2e'; ctx.beginPath(); ctx.moveTo(pin.x, pin.y + pole); ctx.lineTo(pin.x + 13 * px, pin.y + pole - 4 * px + wave); ctx.lineTo(pin.x, pin.y + pole - 8 * px); ctx.fill();
+  // current ball
+  if (ball && state !== 'intro' && state !== 'over') {
+    if (ball.trail.length > 1) {
+      ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1.6 * px; ctx.beginPath();
+      ball.trail.forEach((p, i) => { const yy = p.y + p.z * .6; i ? ctx.lineTo(p.x, yy) : ctx.moveTo(p.x, yy); }); ctx.stroke();
+    }
+    drawBall(ball.x, ball.y, ball.z, PCOL[turn], px, false);
+  }
+  // aim line
+  if (state === 'aim' && drag && drag.ang !== undefined && !inset) {
+    const len = clamp(drag.len, 20, 220) * px * 1.4;
+    ctx.save(); ctx.setLineDash([6 * px, 6 * px]); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2 * px;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.sin(drag.ang) * len, Math.cos(drag.ang) * len); ctx.stroke(); ctx.restore();
+  }
+}
+function drawBall(x, y, z, col, px, resting) {
+  const r = (resting ? 3 : 3.4 + z * .18) * px;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(x + z * .12, y - z * .12, 3.2 * px, 2.6 * px, 0, 0, 7); ctx.fill();
+  const yy = y + z * .6;
+  ctx.fillStyle = resting ? col : '#ffffff'; ctx.beginPath(); ctx.arc(x, yy, r, 0, 7); ctx.fill();
+  ctx.lineWidth = 1.5 * px; ctx.strokeStyle = resting ? '#ffffff' : col; ctx.stroke();
+}
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#1f4a25'; ctx.fillRect(0, 0, W, H);
+  if (!hole) return;
+  const cam = camera();
+  ctx.setTransform(DPR * cam.s, 0, 0, -DPR * cam.s, DPR * cam.ox, DPR * cam.oy);
+  drawWorld(cam.s, false);
+  // pin cam
+  const near = ball && pinDist(ball.x, ball.y) < 32 && ['flight', 'roll', 'done'].includes(state);
+  const restNear = state === 'aim' && rest.some(r => !r.holed && pinDist(r.x, r.y) < 25);
+  if (near || restNear) {
+    const R = Math.min(78, W * .2), cx = W - R - 14, cy = H - 64 - R - 6, zs = R / 11;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fillStyle = '#3d7a37'; ctx.fill(); ctx.clip();
+    ctx.setTransform(DPR * zs, 0, 0, -DPR * zs, DPR * (cx - hole.pin.x * zs), DPR * (cy + hole.pin.y * zs));
+    drawWorld(zs, true);
+    ctx.restore();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.stroke();
+    ctx.font = '800 13px "Saira Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#0e3a2b'; const label = near ? fmt(pinDist(ball.x, ball.y)) + ' m' : 'FAHNE';
+    const tw = ctx.measureText(label).width + 14; ctx.fillRect(cx - tw / 2, cy + R - 9, tw, 18);
+    ctx.fillStyle = '#ffd23f'; ctx.fillText(label, cx, cy + R + 4);
+  }
+  if (state === 'roll' && ball) say('Noch ' + fmt(pinDist(ball.x, ball.y)) + ' m zur Fahne');
+}
+let last = performance.now(), acc = 0;
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; tNow += dt;
+  if (state === 'flight' || state === 'roll') {
+    acc += dt * TS; const h = 1 / 120;
+    while (acc > h) { step(h); acc -= h; if (state !== 'flight' && state !== 'roll') { acc = 0; break; } }
+  }
+  render(); requestAnimationFrame(frame);
+}
+
+/* ---------- Input ---------- */
+function pos(e) { const r = cvs.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() }; }
+cvs.addEventListener('pointerdown', e => {
+  audio();
+  if (state === 'aim') { const p = pos(e); drag = { id: e.pointerId, s: [p], start: p, len: 0 }; cvs.setPointerCapture(e.pointerId); }
+  else if (state === 'flight' && !ball.spun) { const p = pos(e); spinDrag = { id: e.pointerId, start: p }; cvs.setPointerCapture(e.pointerId); }
+});
+cvs.addEventListener('pointermove', e => {
+  if (drag && e.pointerId === drag.id && state === 'aim') {
+    const p = pos(e); drag.s.push(p); if (drag.s.length > 60) drag.s.shift();
+    const dx = p.x - drag.start.x, dy = p.y - drag.start.y; drag.len = Math.hypot(dx, dy);
+    if (dy < -8) drag.ang = clamp(Math.atan2(dx, -dy), -.6, .6);
+  }
+});
+function endPointer(e) {
+  if (drag && e.pointerId === drag.id && state === 'aim') {
+    const p = pos(e); drag.s.push(p);
+    const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+    if (dy > -30) { drag = null; say('Schneller nach oben wischen!'); return; }
+    let i = drag.s.length - 1; while (i > 0 && p.t - drag.s[i - 1].t < 90) i--;
+    if (i === drag.s.length - 1 && i > 0) i--;
+    const q = drag.s[i], dtm = Math.max(8, p.t - q.t);
+    const speed = Math.hypot(p.x - q.x, p.y - q.y) / dtm;     // px per ms
+    const sps = speed * 1000 / H;                              // screen heights per second
+    const power = clamp(sps / 3.2, .08, 1.3);
+    const ang = clamp(Math.atan2(dx, -dy), -.6, .6);
+    drag = null;
+    shoot(power, ang);
+  } else if (spinDrag && e.pointerId === spinDrag.id) {
+    const p = pos(e), dx = p.x - spinDrag.start.x, dy = p.y - spinDrag.start.y;
+    spinDrag = null;
+    if (state === 'flight' && !ball.spun && Math.hypot(dx, dy) > 20) applySpin(dx, dy);
+  }
+}
+cvs.addEventListener('pointerup', endPointer);
+cvs.addEventListener('pointercancel', () => { drag = null; spinDrag = null; });
+
+/* ---------- Buttons ---------- */
+try { const saved = JSON.parse(localStorage.getItem('flickgolf-names') || 'null'); if (Array.isArray(saved)) saved.forEach((n, i) => { if ($('n' + i) && n) $('n' + i).value = n; }); } catch (e) {}
+$('setupForm').addEventListener('submit', e => {
+  e.preventDefault(); audio();
+  const names = [0, 1, 2].map(i => ($('n' + i).value || '').trim() || 'Spieler ' + (i + 1));
+  try { localStorage.setItem('flickgolf-names', JSON.stringify(names)); } catch (er) {}
+  $('setup').hidden = true; startGame(names);
+});
+$('introBtn').addEventListener('click', () => { audio(); $('intro').hidden = true; beginTurn(); });
+$('resBtn').addEventListener('click', nextTurn);
+$('againBtn').addEventListener('click', () => { $('over').hidden = true; $('hud').hidden = true; $('msg').hidden = true; state = 'setup'; ball = null; $('setup').hidden = false; });
+
+window.addEventListener('resize', resize);
+resize();
+// Background course behind the start screen
+hazardOrder = ['pond']; round = 0; newHole(); round = 0;
+requestAnimationFrame(frame);
+})();
+</script>
+</body><!--strip-->
+</html><!--strip-->

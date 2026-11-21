@@ -1,0 +1,10 @@
+{
+  "name": "Flick Golf",
+  "short_name": "Flick Golf",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e3a2b",
+  "theme_color": "#0e3a2b",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
