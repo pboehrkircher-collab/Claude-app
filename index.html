@@ -96,15 +96,22 @@ button.go:active{transform:translateY(1px)}
 .fine{font-size:12px}
 #ad .card{padding:0;overflow:hidden;gap:0}
 .ad-tag{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.55);color:#fff;font:700 11px var(--f-body);letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;border-radius:6px}
-.ad-art{position:relative;height:210px;background:linear-gradient(180deg,#3b2a6b 0%,#c0583a 70%,#f0a24a 100%);overflow:hidden}
-.ad-art::before{content:"";position:absolute;left:50%;top:38px;width:70px;height:70px;margin-left:-35px;border-radius:50%;background:#ffe39a;box-shadow:0 0 50px 18px rgba(255,214,120,.55)}
-.castle{position:absolute;left:0;right:0;bottom:0;height:120px;background:#1c1530;
-  clip-path:polygon(0 100%,0 55%,8% 55%,8% 45%,12% 45%,12% 55%,18% 55%,18% 30%,22% 22%,26% 30%,26% 55%,36% 55%,36% 40%,40% 40%,40% 18%,44% 8%,48% 0,52% 0,56% 8%,60% 18%,60% 40%,64% 40%,64% 55%,74% 55%,74% 30%,78% 22%,82% 30%,82% 55%,88% 55%,88% 45%,92% 45%,92% 55%,100% 55%,100% 100%)}
-.ad-body{padding:18px 20px 20px;display:grid;gap:12px}
-.ad-body h2{font-size:44px;color:var(--gold)}
+.ad-media{position:relative;width:100%;aspect-ratio:9/16;max-height:min(58vh,560px);background:#000;margin-inline:auto;overflow:hidden}
+.ad-media video,.ad-media canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.ad-time{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.55);color:#fff;font:700 12px var(--f-body);font-variant-numeric:tabular-nums;padding:4px 8px;border-radius:6px}
+.ad-bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.25)}
+.ad-bar i{display:block;height:100%;width:0;background:var(--gold)}
+.ad-sound{position:absolute;left:10px;bottom:14px;appearance:none;border:0;border-radius:6px;background:rgba(0,0,0,.6);color:#fff;font:700 12px var(--f-body);padding:6px 10px;cursor:pointer}
+.ad-skip{position:absolute;right:0;bottom:22px;appearance:none;border:1px solid rgba(255,255,255,.5);border-right:0;background:rgba(0,0,0,.7);color:#fff;font:700 14px var(--f-body);padding:10px 14px;cursor:pointer}
+.ad-skip:disabled{cursor:default;color:rgba(255,255,255,.75)}
+.ad-skip:focus-visible,.ad-sound:focus-visible{outline:3px solid #fff;outline-offset:-3px}
+.ad-body{padding:12px 16px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ad-body .ad-txt{flex:1 1 150px;min-width:0}
+.ad-body h2{font-size:30px;color:var(--gold)}
+.ad-body p{font-size:13px}
 .ad-row{display:flex;gap:10px;flex-wrap:wrap}
 .ad-row a,.ad-row button{flex:1 1 140px;text-align:center;text-decoration:none}
-a.go{display:inline-block}
+a.go{display:inline-block;text-decoration:none;text-align:center}
 button.skip{appearance:none;border:2px solid rgba(255,255,255,.3);background:transparent;color:var(--ink);border-radius:10px;font:800 18px var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:12px 16px;cursor:pointer}
 button.skip:disabled{opacity:.5;cursor:default}
 button.skip:focus-visible{outline:3px solid #fff;outline-offset:2px}
@@ -155,16 +162,19 @@ button.skip:focus-visible{outline:3px solid #fff;outline-offset:2px}
 </div>
 
 <div class="overlay" id="ad" hidden>
-  <div class="card" role="dialog" aria-label="Werbung">
-    <div class="ad-art"><span class="ad-tag">Anzeige</span><div class="castle"></div></div>
+  <div class="card" role="dialog" aria-label="Video-Werbung">
+    <div class="ad-media">
+      <video id="adVideo" playsinline muted preload="auto"></video>
+      <canvas id="adCanvas" hidden></canvas>
+      <span class="ad-tag">Anzeige</span>
+      <span class="ad-time" id="adTime">0:30</span>
+      <button class="ad-sound" id="adSound" type="button" hidden>Ton an</button>
+      <button class="ad-skip" id="adSkip" type="button" disabled>Überspringen in 10</button>
+      <div class="ad-bar"><i id="adProg"></i></div>
+    </div>
     <div class="ad-body">
-      <div class="eyebrow">Strategie-Spiel fürs Handy</div>
-      <h2>Kingshot</h2>
-      <p>Verteidige dein Königreich, baue deine Stadt aus und kämpfe mit deiner Allianz. Für Android und iOS.</p>
-      <div class="ad-row">
-        <a class="go" id="adLink" href="https://play.google.com/store/search?q=kingshot&amp;c=apps" target="_blank" rel="noopener">Ansehen</a>
-        <button class="skip" id="adSkip" type="button" disabled>Weiter in 3</button>
-      </div>
+      <div class="ad-txt"><h2>Kingshot</h2><p>Strategie-Spiel für Android und iOS</p></div>
+      <a class="go" id="adLink" href="https://play.google.com/store/search?q=kingshot&amp;c=apps" target="_blank" rel="noopener">Ansehen</a>
     </div>
   </div>
 </div>
@@ -433,21 +443,111 @@ function finish(kind) {
     $('result').hidden = false; $('resBtn').focus({ preventScroll: true });
   }), 750);
 }
-const AD_SECONDS = 3;
-let adTimer = null, adDone = null;
+/* ---------- Video ad: 30 s, skippable after 10 s ----------
+   Put the gameplay video at ads/kingshot-gameplay.mp4 (portrait 9:16 works best).
+   Without that file an animated placeholder scene plays instead. */
+const AD_VIDEO = 'ads/kingshot-gameplay.mp4', AD_LEN = 30, AD_SKIP = 10;
+let adDone = null, adStart = 0, adRaf = 0, adUseVideo = null, adSkipShown = -1;
+const vid = $('adVideo'), adc = $('adCanvas');
+vid.addEventListener('error', () => { adUseVideo = false; if (!$('ad').hidden) useCanvas(); });
+vid.addEventListener('loadeddata', () => { adUseVideo = true; });
+vid.addEventListener('ended', () => { vid.currentTime = 0; vid.play().catch(() => {}); });
+vid.src = AD_VIDEO;
+function useCanvas() { vid.hidden = true; adc.hidden = false; $('adSound').hidden = true; }
 function showAd(done) {
-  adDone = done; let left = AD_SECONDS;
-  const sk = $('adSkip'); sk.disabled = true; sk.textContent = 'Weiter in ' + left;
+  adDone = done; adSkipShown = -1;
   if (/iPhone|iPad|iPod/.test(navigator.userAgent)) $('adLink').href = 'https://apps.apple.com/de/search?term=kingshot';
   $('ad').hidden = false;
-  clearInterval(adTimer);
-  adTimer = setInterval(() => {
-    left--;
-    if (left > 0) { sk.textContent = 'Weiter in ' + left; return; }
-    clearInterval(adTimer); sk.disabled = false; sk.textContent = 'Weiter'; sk.focus({ preventScroll: true });
-  }, 1000);
+  const sk = $('adSkip'); sk.disabled = true; sk.textContent = 'Überspringen in ' + AD_SKIP;
+  if (adUseVideo !== false) {
+    vid.hidden = false; adc.hidden = true; $('adSound').hidden = false; $('adSound').textContent = vid.muted ? 'Ton an' : 'Ton aus';
+    try { vid.currentTime = 0; } catch (e) {}
+    vid.play().catch(() => { if (adUseVideo !== true) useCanvas(); });
+  } else useCanvas();
+  adStart = performance.now(); cancelAnimationFrame(adRaf); adRaf = requestAnimationFrame(adTick);
 }
-function closeAd() { if ($('adSkip').disabled) return; $('ad').hidden = true; const d = adDone; adDone = null; if (d) d(); }
+function adTick(now) {
+  const t = (now - adStart) / 1000;
+  if (!adc.hidden) drawAdScene(t);
+  $('adProg').style.width = Math.min(100, t / AD_LEN * 100) + '%';
+  $('adTime').textContent = '0:' + String(Math.max(0, Math.ceil(AD_LEN - t))).padStart(2, '0');
+  const sk = $('adSkip'), left = Math.ceil(AD_SKIP - t);
+  if (left > 0) { if (left !== adSkipShown) { adSkipShown = left; sk.textContent = 'Überspringen in ' + left; } }
+  else if (sk.disabled) { sk.disabled = false; sk.textContent = 'Überspringen ▸'; }
+  if (t >= AD_LEN) return closeAd(true);
+  adRaf = requestAnimationFrame(adTick);
+}
+function closeAd(force) {
+  if (force !== true && $('adSkip').disabled) return;
+  cancelAnimationFrame(adRaf); vid.pause();
+  $('ad').hidden = true; const d = adDone; adDone = null; if (d) d();
+}
+$('adSound').addEventListener('click', () => { vid.muted = !vid.muted; $('adSound').textContent = vid.muted ? 'Ton an' : 'Ton aus'; });
+
+/* Placeholder scene (original artwork): archers on a wall hold off waves of raiders. */
+let adSc = null;
+function drawAdScene(t) {
+  const r = adc.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(1, r.width), h = Math.max(1, r.height);
+  if (adc.width !== Math.round(w * dpr)) { adc.width = Math.round(w * dpr); adc.height = Math.round(h * dpr); }
+  const c = adc.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!adSc || t < adSc.t) adSc = { t: 0, foes: [], arrows: [], fx: [], gold: 0, kills: 0, nextFoe: 0, nextShot: 0 };
+  const S = adSc, dt = Math.min(.05, t - S.t); S.t = t;
+  const wallY = h * .74, wave = 1 + Math.floor(t / 10);
+  // ground
+  const sky = c.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#5d7a3a'); sky.addColorStop(1, '#3f5a28');
+  c.fillStyle = sky; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#8a7348'; c.fillRect(w * .42, 0, w * .16, wallY);
+  // spawn raiders
+  if (t > S.nextFoe) { S.foes.push({ x: w * (.15 + Math.random() * .7), y: -10, hp: 2 + (wave > 2 ? 1 : 0), v: 18 + wave * 6 + Math.random() * 10 }); S.nextFoe = t + Math.max(.25, 1.1 - wave * .2); }
+  // archers fire
+  if (t > S.nextShot && S.foes.length) {
+    const tg = S.foes.reduce((a, f) => f.y > a.y ? f : a);
+    [.2, .5, .8].forEach(ax => S.arrows.push({ x: w * ax, y: wallY - 6, tx: tg, v: 320 }));
+    S.nextShot = t + .55;
+  }
+  S.arrows.forEach(a => {
+    const dx = a.tx.x - a.x, dy = a.tx.y - a.y, d = Math.hypot(dx, dy) || 1;
+    a.x += dx / d * a.v * dt; a.y += dy / d * a.v * dt; a.ang = Math.atan2(dy, dx);
+    if (d < 8) { a.dead = true; a.tx.hp--; S.fx.push({ x: a.x, y: a.y, t: 0 }); }
+    if (a.tx.dead) a.dead = true;
+  });
+  S.foes.forEach(f => { f.y = Math.min(wallY - 14, f.y + f.v * dt); if (f.hp <= 0 && !f.dead) { f.dead = true; S.kills++; S.gold += 25; S.fx.push({ x: f.x, y: f.y, t: 0, coin: true }); } });
+  S.foes = S.foes.filter(f => !f.dead); S.arrows = S.arrows.filter(a => !a.dead);
+  // draw raiders
+  S.foes.forEach(f => {
+    c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(f.x, f.y + 9, 7, 3, 0, 0, 7); c.fill();
+    c.fillStyle = '#b8332a'; c.beginPath(); c.arc(f.x, f.y, 7, 0, 7); c.fill();
+    c.fillStyle = '#f0c9a0'; c.beginPath(); c.arc(f.x, f.y - 7, 4, 0, 7); c.fill();
+  });
+  // arrows
+  c.strokeStyle = '#f5f0e0'; c.lineWidth = 2;
+  S.arrows.forEach(a => { c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(a.x - Math.cos(a.ang) * 10, a.y - Math.sin(a.ang) * 10); c.stroke(); });
+  // effects
+  S.fx.forEach(e => { e.t += dt; const k = e.t / .6; c.globalAlpha = Math.max(0, 1 - k);
+    if (e.coin) { c.fillStyle = '#ffd23f'; c.font = '800 16px "Saira Condensed",sans-serif'; c.textAlign = 'center'; c.fillText('+25', e.x, e.y - k * 30); }
+    else { c.fillStyle = '#fff3b0'; c.beginPath(); c.arc(e.x, e.y, 3 + k * 10, 0, 7); c.fill(); }
+    c.globalAlpha = 1; });
+  S.fx = S.fx.filter(e => e.t < .6);
+  // wall with battlements and archers
+  c.fillStyle = '#6e6a78'; c.fillRect(0, wallY, w, h - wallY);
+  c.fillStyle = '#85818f'; for (let x = 0; x < w; x += 22) c.fillRect(x, wallY - 10, 13, 12);
+  c.fillStyle = '#4f4b5a'; c.fillRect(w * .4, wallY + 18, w * .2, h - wallY - 18);
+  [.2, .5, .8].forEach(ax => { c.fillStyle = '#2f6fd1'; c.beginPath(); c.arc(w * ax, wallY - 2, 8, 0, 7); c.fill(); c.fillStyle = '#f0c9a0'; c.beginPath(); c.arc(w * ax, wallY - 11, 5, 0, 7); c.fill(); });
+  // HUD inside the video
+  c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(0, 36, w, 30);
+  c.fillStyle = '#fff'; c.font = '800 16px "Saira Condensed",sans-serif'; c.textAlign = 'left';
+  c.fillText('WELLE ' + wave, 12, 57);
+  c.textAlign = 'right'; c.fillStyle = '#ffd23f'; c.fillText('GOLD ' + S.gold, w - 12, 57);
+  // captions
+  const caps = ['Halte die Mauer!', 'Stärkere Gegner in jeder Welle', 'Sammle Gold und rüste auf', 'Jetzt kostenlos spielen'];
+  const cap = caps[Math.min(caps.length - 1, Math.floor(t / 7.5))];
+  c.textAlign = 'center'; c.font = '800 24px "Saira Condensed",sans-serif';
+  c.fillStyle = 'rgba(0,0,0,.55)'; const tw = c.measureText(cap).width + 24; c.fillRect(w / 2 - tw / 2, h * .42 - 22, tw, 34);
+  c.fillStyle = '#fff'; c.fillText(cap, w / 2, h * .42 + 3);
+  c.font = '600 11px Manrope,sans-serif'; c.fillStyle = 'rgba(255,255,255,.75)';
+  c.fillText('Platzhalter-Video', w / 2, 82);
+}
 function nextTurn() {
   $('result').hidden = true;
   turn++;
