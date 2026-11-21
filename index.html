@@ -70,7 +70,7 @@ body{background:var(--forest);color:var(--ink);font-family:var(--f-body);-webkit
 .names label:focus-within{box-shadow:0 0 0 2px var(--gold)}
 .how{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--ink);line-height:1.4;font-size:14px}
 .how b{color:var(--gold)}
-button.go{appearance:none;border:0;border-radius:10px;background:var(--gold);color:#1b2a12;font:800 20px var(--f-display);letter-spacing:.08em;text-transform:uppercase;padding:14px 18px;cursor:pointer}
+button.go,a.go{appearance:none;border:0;border-radius:10px;background:var(--gold);color:#1b2a12;font:800 20px var(--f-display);letter-spacing:.08em;text-transform:uppercase;padding:14px 18px;cursor:pointer}
 button.go:focus-visible{outline:3px solid #fff;outline-offset:2px}
 button.go:active{transform:translateY(1px)}
 .big{font-family:var(--f-display);font-weight:800;font-size:72px;line-height:.9;color:var(--gold);font-variant-numeric:tabular-nums}
@@ -94,6 +94,20 @@ button.go:active{transform:translateY(1px)}
 .item button.owned{background:transparent;color:var(--gold);box-shadow:inset 0 0 0 2px var(--gold)}
 .item button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .fine{font-size:12px}
+#ad .card{padding:0;overflow:hidden;gap:0}
+.ad-tag{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.55);color:#fff;font:700 11px var(--f-body);letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;border-radius:6px}
+.ad-art{position:relative;height:210px;background:linear-gradient(180deg,#3b2a6b 0%,#c0583a 70%,#f0a24a 100%);overflow:hidden}
+.ad-art::before{content:"";position:absolute;left:50%;top:38px;width:70px;height:70px;margin-left:-35px;border-radius:50%;background:#ffe39a;box-shadow:0 0 50px 18px rgba(255,214,120,.55)}
+.castle{position:absolute;left:0;right:0;bottom:0;height:120px;background:#1c1530;
+  clip-path:polygon(0 100%,0 55%,8% 55%,8% 45%,12% 45%,12% 55%,18% 55%,18% 30%,22% 22%,26% 30%,26% 55%,36% 55%,36% 40%,40% 40%,40% 18%,44% 8%,48% 0,52% 0,56% 8%,60% 18%,60% 40%,64% 40%,64% 55%,74% 55%,74% 30%,78% 22%,82% 30%,82% 55%,88% 55%,88% 45%,92% 45%,92% 55%,100% 55%,100% 100%)}
+.ad-body{padding:18px 20px 20px;display:grid;gap:12px}
+.ad-body h2{font-size:44px;color:var(--gold)}
+.ad-row{display:flex;gap:10px;flex-wrap:wrap}
+.ad-row a,.ad-row button{flex:1 1 140px;text-align:center;text-decoration:none}
+a.go{display:inline-block}
+button.skip{appearance:none;border:2px solid rgba(255,255,255,.3);background:transparent;color:var(--ink);border-radius:10px;font:800 18px var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:12px 16px;cursor:pointer}
+button.skip:disabled{opacity:.5;cursor:default}
+button.skip:focus-visible{outline:3px solid #fff;outline-offset:2px}
 @media (prefers-reduced-motion: reduce){#msg.pulse{animation:none}.wind svg{transition:none}}
 </style>
 </head><!--strip-->
@@ -137,6 +151,21 @@ button.go:active{transform:translateY(1px)}
     <h2 id="introTitle">Runde 1</h2>
     <p id="introText"></p>
     <button class="go" id="introBtn" type="button">Los geht's</button>
+  </div>
+</div>
+
+<div class="overlay" id="ad" hidden>
+  <div class="card" role="dialog" aria-label="Werbung">
+    <div class="ad-art"><span class="ad-tag">Anzeige</span><div class="castle"></div></div>
+    <div class="ad-body">
+      <div class="eyebrow">Strategie-Spiel fürs Handy</div>
+      <h2>Kingshot</h2>
+      <p>Verteidige dein Königreich, baue deine Stadt aus und kämpfe mit deiner Allianz. Für Android und iOS.</p>
+      <div class="ad-row">
+        <a class="go" id="adLink" href="https://play.google.com/store/search?q=kingshot&amp;c=apps" target="_blank" rel="noopener">Ansehen</a>
+        <button class="skip" id="adSkip" type="button" disabled>Weiter in 3</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -394,7 +423,7 @@ function finish(kind) {
   if (kind === 'rest' || kind === 'holed') rest.push({ x: ball.x, y: ball.y, p: turn, holed: kind === 'holed' });
   renderBoard();
   say(players[turn] + ': ' + fmt(d) + ' m');
-  setTimeout(() => {
+  setTimeout(() => showAd(() => {
     $('resEyebrow').textContent = players[turn] + ' · Runde ' + (round + 1);
     $('resBig').innerHTML = ''; $('resBig').append(document.createTextNode(fmt(d) + ' '));
     const sm = document.createElement('small'); sm.textContent = 'm'; $('resBig').append(sm);
@@ -402,8 +431,23 @@ function finish(kind) {
     const last = turn === NP - 1 && round === ROUNDS - 1;
     $('resBtn').textContent = last ? 'Endstand zeigen' : (turn === NP - 1 ? 'Weiter zum Pro-Shop' : 'Weiter: ' + players[turn + 1]);
     $('result').hidden = false; $('resBtn').focus({ preventScroll: true });
-  }, 750);
+  }), 750);
 }
+const AD_SECONDS = 3;
+let adTimer = null, adDone = null;
+function showAd(done) {
+  adDone = done; let left = AD_SECONDS;
+  const sk = $('adSkip'); sk.disabled = true; sk.textContent = 'Weiter in ' + left;
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) $('adLink').href = 'https://apps.apple.com/de/search?term=kingshot';
+  $('ad').hidden = false;
+  clearInterval(adTimer);
+  adTimer = setInterval(() => {
+    left--;
+    if (left > 0) { sk.textContent = 'Weiter in ' + left; return; }
+    clearInterval(adTimer); sk.disabled = false; sk.textContent = 'Weiter'; sk.focus({ preventScroll: true });
+  }, 1000);
+}
+function closeAd() { if ($('adSkip').disabled) return; $('ad').hidden = true; const d = adDone; adDone = null; if (d) d(); }
 function nextTurn() {
   $('result').hidden = true;
   turn++;
@@ -707,6 +751,7 @@ $('setupForm').addEventListener('submit', e => {
 $('introBtn').addEventListener('click', () => { audio(); $('intro').hidden = true; beginTurn(); });
 $('resBtn').addEventListener('click', nextTurn);
 $('shopBtn').addEventListener('click', closeShop);
+$('adSkip').addEventListener('click', closeAd);
 $('againBtn').addEventListener('click', () => { $('over').hidden = true; $('hud').hidden = true; $('msg').hidden = true; state = 'setup'; ball = null; $('setup').hidden = false; });
 
 window.addEventListener('resize', resize);
