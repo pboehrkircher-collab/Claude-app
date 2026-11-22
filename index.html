@@ -180,6 +180,7 @@ button.go:active{transform:translateY(1px)}
         <option value="W6-2718">Tannenschlucht · Wald · 6 Löcher</option>
         <option value="D3-5772">Oase Dorado · Wüste · 3 Löcher</option>
         <option value="M9-8080">Grand Tour · alle Landschaften · 9 Löcher</option>
+        <option value="C9-2026">Championship · 9 Signature-Löcher · sehr schwer</option>
         <option value="code">Platz-Code eingeben …</option>
       </select>
       <input class="codein" id="codeIn" maxlength="12" placeholder="z. B. K9-48213" aria-label="Platz-Code" autocomplete="off" hidden>
@@ -285,12 +286,28 @@ let drag = null, spinDrag = null, aimAng = 0, charge = 0;
 let coins = [], upg = [], shopIdx = 0;
 let cam = { bottom: -10, span: 200, cx: 0, wspan: 100 }, overview = false, aimTarget = null;
 // Suggested target: the pin if it is in reach, otherwise a point down the fairway (so doglegs are played round the corner)
+function flightClear(x1, y1) {
+  // the ball may fly over water, but the line must stay inside the course and miss tall trees
+  const x0 = ball.x, y0 = ball.y, d = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(d / 5));
+  for (let i = 1; i <= n; i++) {
+    const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
+    if (fwDist(x, y, hole.cor) > CORR - 3) return false;
+    for (const t of hole.trees) if (t.h >= 12 && Math.hypot(x - t.x, y - t.y) < t.r + 2.5) return false;
+  }
+  return true;
+}
 function autoTarget() {
   const d = pinDist(ball.x, ball.y);
   const reach = club.putt ? Infinity : clubReach() + club.roll;
-  if (d <= reach * .95) return { x: hole.pin.x, y: hole.pin.y, d, pin: true };
-  const fw = hole.fw; let t = fw[fw.length - 1];
-  for (let i = nearestIdx(fw, ball.x, ball.y); i < fw.length; i++) if (Math.hypot(fw[i].x - ball.x, fw[i].y - ball.y) >= reach * .85) { t = fw[i]; break; }
+  if (d <= reach * .95 && (club.putt || flightClear(hole.pin.x, hole.pin.y))) return { x: hole.pin.x, y: hole.pin.y, d, pin: true };
+  const fw = hole.fw, i0 = nearestIdx(fw, ball.x, ball.y);
+  let t = fw[Math.min(fw.length - 1, i0 + 3)];
+  for (let i = i0 + 1; i < fw.length; i++) {
+    const di = Math.hypot(fw[i].x - ball.x, fw[i].y - ball.y);
+    if (di > reach * .85) break;
+    const sf = surf(fw[i].x, fw[i].y);
+    if (sf !== 'water' && sf !== 'ob' && flightClear(fw[i].x, fw[i].y)) t = fw[i];
+  }
   return { x: t.x, y: t.y, d: Math.hypot(t.x - ball.x, t.y - ball.y), pin: false };
 }
 const particles = [];
@@ -317,12 +334,26 @@ const THEMES = {
   P: { key: 'P', name: 'Park', ground: '#2b5a2c', rough: '#3d7a37', fair: '#5ea94f', fairEdge: '#4f9645', fringe: '#6bbd5a', green: '#86d672', tree: 'round', wind: [2, 8], dog: .65, corr: 38, fwh: 13, trees: 1, deco: 1.1, hazards: ['creek', 'pond', 'lake'], shore: '#3e8a52', bunker: ['#cdb67a', '#ecdcab'] },
   K: { key: 'K', name: 'Küste', ground: '#a39b63', rough: '#94a75c', fair: '#6aab4b', fairEdge: '#5a9640', fringe: '#79bc59', green: '#93d872', tree: 'pine', wind: [4, 11], dog: .5, corr: 36, fwh: 14, trees: .35, deco: .7, sea: true, hazards: ['pond', 'creek', 'none'], shore: '#c9b27a', bunker: ['#d9c58d', '#f3e7c0'] },
   W: { key: 'W', name: 'Wald', ground: '#163b1b', rough: '#2d6832', fair: '#4e9c44', fairEdge: '#3f8a3a', fringe: '#5dad54', green: '#7ecf6b', tree: 'pine', wind: [.5, 4], dog: .85, corr: 30, fwh: 11, trees: 2.6, deco: 1.7, hazards: ['creek', 'pond', 'none'], shore: '#2f6a35', bunker: ['#c4ad73', '#e4d3a2'] },
+  C: { key: 'C', name: 'Championship', ground: '#21502a', rough: '#3a7a3a', fair: '#58ad4c', fairEdge: '#47963f', fringe: '#67bb58', green: '#84d870', tree: 'round', wind: [4, 9], dog: 0, corr: 34, fwh: 12, trees: 1.2, deco: 1.2, hazards: ['none'], shore: '#3e8a52', bunker: ['#e3d3a6', '#fbf3dc'] },
   D: { key: 'D', name: 'Wüste', ground: '#c39a5f', rough: '#dbbb82', fair: '#77ac49', fairEdge: '#68993f', fringe: '#86bb58', green: '#93d672', tree: 'cactus', wind: [2, 7], dog: .6, corr: 38, fwh: 12, trees: .9, deco: .5, roughSurf: 'waste', hazards: ['oasis', 'none', 'oasis'], shore: '#7fae4a', bunker: ['#e2c991', '#f6ead0'] },
 };
+// Championship course: nine signature holes, each with its own defining feature
+const CHAMP = [
+  { sp: 'island', par: 3, L: [150, 168], name: 'Inselgrün', txt: 'Das Grün liegt mitten im See. Nur ein Treffer aufs Grün zählt.' },
+  { sp: 'waterside', par: 4, L: [360, 390], name: 'Seeufer', txt: 'Wasser auf der kompletten Länge direkt neben dem Fairway.' },
+  { sp: 'islands', par: 5, L: [470, 505], name: 'Fairway-Inseln', txt: 'Drei Wasserläufe zerteilen das Fairway in Inseln. Jeder Schlag muss tragen.' },
+  { sp: 'corner', par: 4, L: [340, 370], name: 'Rechter Winkel', txt: '90-Grad-Dogleg mit einem See in der Ecke. Wer abkürzt, riskiert alles.' },
+  { sp: 'chute', par: 4, L: [320, 350], name: 'Waldschneise', txt: 'Extrem schmales Fairway durch dichten Wald, dazu Topfbunker.' },
+  { sp: 'peninsula', par: 3, L: [190, 212], name: 'Halbinsel', txt: 'Das Grün ragt in den See: Wasser links, rechts und dahinter.' },
+  { sp: 'sahara', par: 4, L: [350, 380], name: 'Bunkermeer', txt: 'Ein Feld aus Bunkern liegt quer über dem Fairway, daneben Sand statt Rough.' },
+  { sp: 'snake', par: 5, L: [500, 535], name: 'Schlange', txt: 'Scharfes Doppel-Dogleg, in der zweiten Kurve kreuzt ein Bach.' },
+  { sp: 'finale', par: 4, L: [400, 430], name: 'Klippenfinale', txt: 'Meer auf der ganzen Länge, Sturm und ein Bach vor dem kleinen Grün.' },
+];
+let playOrder = [], oi = 0;
 let course = { theme: 'P', holes: 3, seed: 1, name: '' }, holeThemes = [], mode = 'stroke', points = [], holeWinner = [];
 function courseCode() { return course.theme + course.holes + '-' + course.seed; }
 function parseCode(t) {
-  const m = /^\s*([PKWDM])\s*([1-9])\s*-\s*(\d{1,7})\s*$/i.exec(t || '');
+  const m = /^\s*([PKWDMC])\s*([1-9])\s*-\s*(\d{1,7})\s*$/i.exec(t || '');
   return m ? { theme: m[1].toUpperCase(), holes: +m[2], seed: +m[3] } : null;
 }
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -386,27 +417,28 @@ function resample(pts, step) {
   if (Math.hypot(last.x - o.x, last.y - o.y) > step * .3) out.push(last);
   return out;
 }
-function centerline(par, L, dogP) {
-  const dog = par > 3 && rng() < dogP;
+function centerline(par, L, dogP, force) {
+  const dog = force ? !!force.turns : par > 3 && rng() < dogP;
   const corners = [];
   let pts, kind = 'none';
   if (!dog) {
-    const c1 = { x: rnd(-18, 18), y: L * .33 }, c2 = { x: rnd(-18, 18), y: L * .66 }, ex = rnd(-9, 9);
+    const w = force ? 6 : 18;
+    const c1 = { x: rnd(-w, w), y: L * .33 }, c2 = { x: rnd(-w, w), y: L * .66 }, ex = rnd(-9, 9);
     pts = [];
     for (let i = 0; i <= 60; i++) {
       const t = i / 60, a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, d = t ** 3;
       pts.push({ x: b * c1.x + c * c2.x + d * ex, y: a * -4 + b * c1.y + c * c2.y + d * (L - 5) });
     }
   } else {
-    const double = par === 5 && rng() < .45, sign = rng() < .5 ? -1 : 1;
-    const legs = double ? [rnd(.32, .4), rnd(.28, .34)] : [rnd(.48, .6)];
+    const double = force ? force.turns.length === 2 : par === 5 && rng() < .45, sign = rng() < .5 ? -1 : 1;
+    const legs = force ? force.legs.slice() : double ? [rnd(.32, .4), rnd(.28, .34)] : [rnd(.48, .6)];
     legs.push(1 - legs.reduce((a, b) => a + b, 0));
     let x = rnd(-4, 4), y = -4, dir = 0;
     pts = [{ x: 0, y: -4 }];
     legs.forEach((f, i) => {
       x += Math.sin(dir) * f * (L - 1); y += Math.cos(dir) * f * (L - 1); pts.push({ x, y });
       if (i < legs.length - 1) {
-        const turn = (double && i === 1 ? -sign : sign) * rnd(38, 58) * D2R;
+        const turn = (double && i === 1 ? -sign : sign) * (force ? force.turns[i] : rnd(38, 58)) * D2R;
         corners.push({ x, y, turn: Math.sign(turn) }); dir += turn;
       }
     });
@@ -425,29 +457,59 @@ function newHole() {
   rng = mulberry(course.seed * 7919 + round * 104729 + 17);
   const T = THEMES[holeThemes[round] || course.theme] || THEMES.P;
   CORR = T.corr; FWH = T.fwh;
-  const par = pars[round] || 4, L0 = holeLength(par);
-  const cl = centerline(par, L0, T.dog), fw = cl.fw, N = fw.length - 1;
+  const spec = T.key === 'C' ? CHAMP[round % CHAMP.length] : null, sp = spec ? spec.sp : '';
+  if (sp === 'chute') { CORR = 21; FWH = 8; }
+  const par = spec ? spec.par : pars[round] || 4, L0 = spec ? Math.round(rnd(spec.L[0], spec.L[1])) : holeLength(par);
+  const force = !spec ? null : sp === 'corner' ? { turns: [rnd(85, 95)], legs: [.56] } : sp === 'snake' ? { turns: [rnd(62, 72), rnd(62, 72)], legs: [.33, .3] } : { straight: true };
+  const cl = centerline(par, L0, T.dog, force), fw = cl.fw, N = fw.length - 1;
   const endDir = fwDirAt(fw, N);
   const gc = { x: fw[N].x + endDir.x * 5, y: fw[N].y + endDir.y * 5 };
   let L = 0; for (let i = 0; i < N; i++) L += Math.hypot(fw[i + 1].x - fw[i].x, fw[i + 1].y - fw[i].y); L = Math.round(L + 5);
-  const green = { x: gc.x + rnd(-2, 2), y: gc.y + rnd(-1.5, 2), rx: rnd(13, 16), ry: rnd(11, 13.5), rot: rnd(-.4, .4) };
+  const green = spec ? { x: gc.x + rnd(-1, 1), y: gc.y + rnd(-1, 1), rx: rnd(10, 12), ry: rnd(8.5, 10), rot: rnd(-.4, .4) }
+                     : { x: gc.x + rnd(-2, 2), y: gc.y + rnd(-1.5, 2), rx: rnd(13, 16), ry: rnd(11, 13.5), rot: rnd(-.4, .4) };
   const pin = { x: green.x + rnd(-4, 4), y: green.y + rnd(-3, 3) };
   const cor = [{ x: 0, y: -12 }, ...fw];
   for (let k = 1; k <= 6; k++) cor.push({ x: fw[N].x + endDir.x * 6 * k, y: fw[N].y + endDir.y * 6 * k });
   const bunkers = [];
   const a0 = rnd(0, Math.PI * 2);
-  [0, rnd(2, 3.6)].forEach(off => {
+  (sp === 'island' || sp === 'peninsula' ? [] : [0, rnd(2, 3.6)]).forEach(off => {
     const ang = a0 + off;
     bunkers.push({ x: green.x + Math.cos(ang) * (green.rx + 2.5), y: green.y + Math.sin(ang) * (green.ry + 2.5), rx: rnd(4.5, 6.5), ry: rnd(2.6, 3.8), rot: ang + Math.PI / 2 });
   });
-  const nFw = par === 3 ? 1 : par === 4 ? 2 : 3;
+  const nFw = sp === 'islands' || sp === 'sahara' || sp === 'island' ? 0 : par === 3 ? 1 : par === 4 ? 2 : 3;
   for (let k = 0; k < nFw; k++) {
     const i = Math.round(N * rnd(.35, .8)), fp = fw[i], d = fwDirAt(fw, i), side = rng() < .5 ? -1 : 1, off = rnd(9, 13);
     bunkers.push({ x: fp.x + d.nx * side * off, y: fp.y + d.ny * side * off, rx: rnd(5, 8), ry: rnd(3.5, 5), rot: d.ang });
   }
   const water = [], palms = [];
-  const kind = T.hazards[Math.floor(rng() * T.hazards.length)];
-  if (kind === 'oasis') {
+  const kind = spec ? sp : T.hazards[Math.floor(rng() * T.hazards.length)];
+  const nrmAng = d => Math.atan2(d.ny, d.nx);
+  if (sp === 'island') {
+    green.rx += 2; green.ry += 2;
+    water.push({ x: green.x, y: green.y, rx: green.rx + 22, ry: green.ry + 22, rot: green.rot, island: true, pad: 7 });
+  } else if (sp === 'peninsula') {
+    [-1, 1].forEach(sd => water.push({ x: green.x + endDir.nx * sd * (green.rx + 13), y: green.y + endDir.ny * sd * (green.rx + 13), rx: 30, ry: 11, rot: endDir.ang, island: true }));
+    water.push({ x: green.x + endDir.x * (green.ry + 13), y: green.y + endDir.y * (green.ry + 13), rx: 40, ry: 12, rot: nrmAng(endDir), island: true });
+  } else if (sp === 'islands') {
+    [.3, .56, .8].forEach(f => { const i = Math.round(N * f), d = fwDirAt(fw, i); water.push({ x: fw[i].x, y: fw[i].y, rx: CORR + 14, ry: rnd(12, 16), rot: nrmAng(d) }); });
+  } else if (sp === 'corner') {
+    const c = cl.corners[0], i = nearestIdx(fw, c.x, c.y), d = fwDirAt(fw, i);
+    water.push({ x: c.x + d.nx * c.turn * 26, y: c.y + d.ny * c.turn * 26, rx: 24, ry: 20, rot: d.ang });
+  } else if (sp === 'chute') {
+    for (let k = 0; k < 6; k++) { const i = Math.round(N * rnd(.2, .9)), d = fwDirAt(fw, i), sd = k % 2 ? 1 : -1;
+      bunkers.push({ x: fw[i].x + d.nx * sd * (FWH - 1), y: fw[i].y + d.ny * sd * (FWH - 1), rx: 2.6, ry: 2.6, rot: 0 }); }
+  } else if (sp === 'sahara') {
+    const i = Math.round(N * .52), d = fwDirAt(fw, i);
+    for (let k = -3; k <= 3; k++) bunkers.push({ x: fw[i].x + d.nx * k * 7.5 + d.x * rnd(-3, 3), y: fw[i].y + d.ny * k * 7.5 + d.y * rnd(-3, 3), rx: rnd(5, 7), ry: rnd(3.2, 4.2), rot: d.ang + rnd(-.4, .4) });
+    const j = Math.round(N * .76), e = fwDirAt(fw, j);
+    for (let k = -1; k <= 1; k++) bunkers.push({ x: fw[j].x + e.nx * k * 9, y: fw[j].y + e.ny * k * 9, rx: rnd(4, 5.5), ry: rnd(3, 4), rot: e.ang });
+  } else if (sp === 'snake') {
+    const c = cl.corners[1], i = nearestIdx(fw, c.x, c.y), d = fwDirAt(fw, i);
+    water.push({ x: c.x, y: c.y, rx: CORR + 10, ry: 4, rot: nrmAng(d) });
+  } else if (sp === 'finale') {
+    const i = Math.max(1, N - Math.round((green.ry + 10) / 6)), d = fwDirAt(fw, i);
+    water.push({ x: fw[i].x, y: fw[i].y, rx: CORR + 6, ry: 3.6, rot: nrmAng(d) });
+  } else if (kind === 'oasis') {
     const i = Math.round(N * rnd(.4, .6)), p = fw[i], d = fwDirAt(fw, i), sd = rng() < .5 ? -1 : 1, off = rnd(15, 19);
     const o = { x: p.x + d.nx * sd * off, y: p.y + d.ny * sd * off, rx: rnd(9, 12), ry: rnd(6, 8), rot: d.ang + rnd(-.4, .4) };
     water.push(o);
@@ -464,24 +526,27 @@ function newHole() {
   }
   const xs = cor.map(p => p.x), ys = cor.map(p => p.y);
   const bb = { x0: Math.min(...xs) - CORR, x1: Math.max(...xs) + CORR, y0: Math.min(...ys) - CORR, y1: Math.max(...ys) + CORR };
-  hole = { L, par, pin, green, fw, cor, bunkers, water, trees: [], deco: [], kind, dog: cl.kind, bb, theme: T, sea: 0 };
-  if (T.sea) { hole.sea = rng() < .5 ? -1 : 1; if (hole.sea < 0) bb.x0 -= 120; else bb.x1 += 120; }
-  const sa = rnd(0, Math.PI * 2), sm = rnd(.15, .45);
+  hole = { L, par, pin, green, fw, cor, bunkers, water, trees: [], deco: [], kind, dog: cl.kind, bb, theme: T, sea: 0, se: CORR, bw: 9, spec };
+  if (T.sea || sp === 'finale' || sp === 'waterside') { hole.sea = rng() < .5 ? -1 : 1; if (hole.sea < 0) bb.x0 -= 120; else bb.x1 += 120; }
+  if (sp === 'waterside') { hole.se = FWH + 5; hole.bw = 0; }
+  if (sp === 'sahara') { hole.roughSurf = 'waste'; hole.roughCol = '#dbbb82'; }
+  const sa = rnd(0, Math.PI * 2), sm = spec ? rnd(.3, .6) : rnd(.15, .45);
   hole.slope = { x: Math.sin(sa) * sm, y: Math.cos(sa) * sm, a: sa, m: sm };
   const trees = hole.trees, deco = hole.deco;
   palms.forEach(t => trees.push(t));
-  const nT = Math.round(L / 18 * T.trees);
+  const inWater = t => water.some(w => inEll(w, t.x, t.y, t.r));
+  const nT = Math.round(L / 18 * T.trees * (sp === 'chute' ? 4 : 1));
   for (let k = 0; k < nT; k++) {
     const i = 4 + Math.floor(rng() * (N - 3)), d = fwDirAt(fw, i), sd = k % 2 ? 1 : -1, off = rnd(29, 35);
     const t = { x: fw[i].x + d.nx * sd * rnd(FWH + 8, CORR - 2), y: fw[i].y + d.ny * sd * rnd(FWH + 8, CORR - 2), r: T.tree === 'cactus' ? rnd(1.3, 2) : rnd(2.2, 3.4), h: T.tree === 'cactus' ? 6 : 9 };
-    if (fwDist(t.x, t.y) > FWH + 6 && !inEll(green, t.x, t.y, 4) && !(hole.sea && sd === hole.sea)) trees.push(t);
+    if (fwDist(t.x, t.y) > (sp === 'chute' ? FWH + 3 : FWH + 6) && !inEll(green, t.x, t.y, 4) && !(hole.sea && sd === hole.sea) && !inWater(t)) trees.push(t);
   }
   cl.corners.forEach(c => {
     const i = nearestIdx(fw, c.x, c.y), d = fwDirAt(fw, i);
     for (let k = 0; k < 9; k++) {
       const off = rnd(16, 36), along = rnd(-22, 22);
       const t = { x: c.x + d.nx * c.turn * off + d.x * along, y: c.y + d.ny * c.turn * off + d.y * along, r: rnd(3, 4.6), h: 18 };
-      if (fwDist(t.x, t.y) > FWH + 3 && fwDist(t.x, t.y, cor) < CORR - 2) trees.push(t);
+      if (fwDist(t.x, t.y) > FWH + 3 && fwDist(t.x, t.y, cor) < CORR - 2 && !inWater(t)) trees.push(t);
     }
   });
   for (let k = 0; k < L * 4 && deco.length < L * T.deco; k++) {
@@ -496,14 +561,14 @@ function newHole() {
   if (hole.sea) {
     const e1 = [], e2 = [], far = [];
     cor.forEach((p, i) => { const d = fwDirAt(cor, i), sx = d.nx * hole.sea, sy = d.ny * hole.sea;
-      e1.push({ x: p.x + sx * (CORR - 1), y: p.y + sy * (CORR - 1) }); e2.push({ x: p.x + sx * (CORR + 9), y: p.y + sy * (CORR + 9) }); far.push({ x: p.x + sx * 700, y: p.y + sy * 700 }); });
+      e1.push({ x: p.x + sx * hole.se, y: p.y + sy * hole.se }); e2.push({ x: p.x + sx * (hole.se + hole.bw), y: p.y + sy * (hole.se + hole.bw) }); far.push({ x: p.x + sx * 700, y: p.y + sy * 700 }); });
     const ext = (arr, i0, i1) => { const a = arr[i0], b = arr[i1], dx = a.x - b.x, dy = a.y - b.y, l = Math.hypot(dx, dy) || 1; return { x: a.x + dx / l * 300, y: a.y + dy / l * 300 }; };
     const n = cor.length - 1;
     hole.beachPoly = e1.concat(e2.slice().reverse());
     hole.seaPoly = [ext(e2, 0, 1), ...e2, ext(e2, n, n - 1), ext(far, n, n - 1), ...far.slice().reverse(), ext(far, 0, 1)];
     hole.seaLine = e2;
   }
-  const wa = rnd(0, Math.PI * 2), ws = rnd(T.wind[0], T.wind[1]);
+  const wa = rnd(0, Math.PI * 2), ws = sp === 'finale' ? rnd(7, 10) : sp === 'island' ? rnd(2, 4.5) : rnd(T.wind[0], T.wind[1]);
   baseWind = { x: Math.sin(wa) * ws, y: Math.cos(wa) * ws, s: ws, a: wa };
   wind = { ...baseWind };
   // gusts are fixed per stroke number, so every player gets the same conditions on this hole
@@ -537,14 +602,15 @@ function fwDist(x, y, fw = hole.fw) {
 }
 function surf(x, y) {
   const dc = fwDist(x, y, hole.cor);
-  if (dc > CORR) { if (hole.sea && seaSide(x, y)) return dc < CORR + 9 ? 'beach' : 'water'; return 'ob'; }
-  for (const w of hole.water) if (inEll(w, x, y)) return 'water';
+  if (hole.sea && dc > hole.se && seaSide(x, y)) return dc < hole.se + hole.bw ? 'beach' : 'water';
+  if (dc > CORR) return 'ob';
+  for (const w of hole.water) if (inEll(w, x, y) && !(w.island && inEll(hole.green, x, y, w.pad || 2.5))) return 'water';
   for (const b of hole.bunkers) if (inEll(b, x, y)) return 'bunker';
   if (inEll(hole.green, x, y)) return 'green';
   if (inEll(hole.green, x, y, 2.5)) return 'fringe';
   if (Math.abs(x) < 4 && y > -3 && y < 3) return 'tee';
   if (fwDist(x, y) < FWH) return 'fairway';
-  return hole.theme.roughSurf || 'rough';
+  return hole.roughSurf || hole.theme.roughSurf || 'rough';
 }
 const FRIC = { green: 1.5, fringe: 2.3, fairway: 3.4, tee: 3.4, rough: 7.5, waste: 9, beach: 14, bunker: 22, ob: 4, water: 50 };
 const REST = { green: .3, fringe: .28, fairway: .36, tee: .36, rough: .22, waste: .15, beach: .08, bunker: .04, ob: .3 };
@@ -557,7 +623,13 @@ const LIE_ERR = { rough: [.86, 1, 3], waste: [.84, 1, 3.5], beach: [.78, 1, 4], 
 /* ---------- Clubs ---------- */
 function pickClub() {
   const d = pinDist(ball.x, ball.y), s = surf(ball.x, ball.y);
-  if (s === 'green' || (s === 'fringe' && d < 24)) return { id: 'putter', name: 'Putter', putt: true, max: clamp(d * 1.8, 8, 32), roll: 0 };
+  if (s === 'green' || (s === 'fringe' && d < 24)) return { id: 'putter', name: 'Putter', putt: true, max: clamp(d * 1.8, 3, 32), roll: 0 };
+  // water right in front of the pin: take a high, soft-landing club that has to carry all the way
+  if (d <= 180 && !LIE_ERR[s] || d <= 120) {
+    const ux = (hole.pin.x - ball.x) / d, uy = (hole.pin.y - ball.y) / d;
+    for (let k = 6; k <= 42; k += 6) if (k < d && surf(hole.pin.x - ux * k, hole.pin.y - uy * k) === 'water')
+      return { id: 'wedge', name: d > 95 ? 'Hohes Eisen' : 'Wedge', loft: 46 * D2R, max: clamp(d * 1.3, 30, 185), roll: 2 };
+  }
   if (d > 165 && !LIE_ERR[s]) return { id: 'driver', name: 'Driver', loft: 18 * D2R, max: 190, roll: 55 };
   if (d > 85) return { id: 'iron', name: 'Eisen', loft: 30 * D2R, max: 160, roll: 18 };
   return { id: 'wedge', name: 'Wedge', loft: 48 * D2R, max: clamp(d * 1.6, 30, 95), roll: 4 };
@@ -664,6 +736,8 @@ function startGame(names, cfg) {
   rng = mulberry(course.seed);
   while (pars.length < ROUNDS) { pars.push(...shuffle([3, 4, 5])); holeThemes.push(...(course.theme === 'M' ? shuffle(['P', 'K', 'W', 'D']) : [course.theme])); }
   pars.length = ROUNDS; holeThemes.length = ROUNDS;
+  if (course.theme === 'C') pars = CHAMP.slice(0, ROUNDS).map(c => c.par);
+  playOrder = names.map((_, i) => i); oi = 0; turn = playOrder[0];
   $('board').classList.toggle('many', ROUNDS > 4);
   newHole();
   $('hud').hidden = false; renderBoard(); showIntro();
@@ -674,15 +748,17 @@ function windDir(a) {
 }
 function showIntro() {
   state = 'intro';
-  const hz = { creek: 'Ein Bach läuft quer vor dem Grün.', pond: 'Ein Teich liegt neben dem Fairway.', lake: 'Ein See liegt quer über dem Fairway.', oasis: 'Eine Oase mit Palmen liegt neben dem Fairway.' }[hole.kind] || 'Kein Wasser auf dieser Bahn.';
+  const hz = hole.spec ? hole.spec.txt : { creek: 'Ein Bach läuft quer vor dem Grün.', pond: 'Ein Teich liegt neben dem Fairway.', lake: 'Ein See liegt quer über dem Fairway.', oasis: 'Eine Oase mit Palmen liegt neben dem Fairway.' }[hole.kind] || 'Kein Wasser auf dieser Bahn.';
   const sea = hole.sea ? ' Das Meer liegt ' + (hole.sea < 0 ? 'links' : 'rechts') + ', davor ein Strand.' : '';
   $('introEyebrow').textContent = 'Loch ' + (round + 1) + ' von ' + ROUNDS + ' · ' + hole.theme.name + (mode === 'match' ? ' · Lochwettspiel' : '');
   $('introCode').innerHTML = '';
   $('introCode').append(document.createTextNode((course.name ? 'Platz „' + course.name + '“ · ' : '') + 'Platz-Code '));
   const cb = document.createElement('b'); cb.textContent = courseCode(); $('introCode').append(cb);
-  $('introTitle').textContent = 'Par ' + hole.par + ' · ' + hole.L + ' m';
-  const dg = { left: ' Dogleg nach links.', right: ' Dogleg nach rechts.', double: ' Doppel-Dogleg.' }[hole.dog] || '';
-  $('introText').textContent = hz + sea + dg + ' Wind: ' + fmt(baseWind.s) + ' m/s ' + windDir(baseWind.a) + ', mit Böen. ' + players[turn] + ' beginnt.';
+  $('introTitle').textContent = (hole.spec ? hole.spec.name + ' · ' : '') + 'Par ' + hole.par + ' · ' + hole.L + ' m';
+  const dg = hole.spec ? '' : { left: ' Dogleg nach links.', right: ' Dogleg nach rechts.', double: ' Doppel-Dogleg.' }[hole.dog] || '';
+  const sea2 = hole.spec ? (hole.sea ? ' Das Wasser liegt ' + (hole.sea < 0 ? 'links.' : 'rechts.') : '') : sea;
+  const ord = round > 0 && NP > 1 ? ' beginnt (wenigste Schläge am Vorloch). Reihenfolge: ' + playOrder.map(i => players[i]).join(' → ') + '.' : ' beginnt.';
+  $('introText').textContent = hz + sea2 + dg + ' Wind: ' + fmt(baseWind.s) + ' m/s ' + windDir(baseWind.a) + ', mit Böen. ' + players[turn] + ord;
   $('intro').hidden = false; updateHud();
 }
 function beginTurn() {
@@ -811,25 +887,29 @@ function holeDone(capped) {
   $('resBig').innerHTML = ''; $('resBig').append(document.createTextNode(n + ' '));
   const sm = document.createElement('small'); sm.textContent = n === 1 ? 'Schlag' : 'Schläge'; $('resBig').append(sm);
   let matchTxt = '';
-  if (mode === 'match' && turn === NP - 1) {
+  if (mode === 'match' && oi === NP - 1) {
     const res = scores.map(sc => sc[round]), best = Math.min(...res), who = res.map((v, i) => v === best ? i : -1).filter(i => i >= 0);
     if (who.length === 1) { holeWinner[round] = who[0]; points[who[0]]++; matchTxt = ' Loch an ' + players[who[0]] + '!'; }
     else { holeWinner[round] = -1; matchTxt = ' Loch geteilt, kein Punkt.'; }
     renderBoard();
   }
   $('resText').textContent = (capped ? 'Maximum von ' + MAX_STROKES + ' Schlägen erreicht. ' : scoreName(n, hole.par) + ' ') + '+' + got + ' Münzen.' + matchTxt;
-  const last = turn === NP - 1 && round === ROUNDS - 1;
-  $('resBtn').textContent = last ? 'Endstand zeigen' : (turn === NP - 1 ? 'Weiter zum Pro-Shop' : 'Weiter: ' + players[turn + 1] + ' (gleiches Loch)');
+  const last = oi === NP - 1 && round === ROUNDS - 1;
+  $('resBtn').textContent = last ? 'Endstand zeigen' : (oi === NP - 1 ? (round === ROUNDS - 1 ? 'Endstand zeigen' : 'Weiter zum Pro-Shop') : 'Weiter: ' + players[playOrder[oi + 1]] + ' (gleiches Loch)');
   $('result').hidden = false; $('resBtn').focus({ preventScroll: true });
 }
 function nextTurn() {
   $('result').hidden = true;
-  turn++;
-  if (turn >= NP) {
-    turn = 0; round++;
+  oi++;
+  if (oi >= NP) {
+    const prev = round; round++;
     if (round >= ROUNDS) return gameOver();
+    // stable sort: ties keep the order they teed off in on the previous hole
+    playOrder = playOrder.slice().sort((a, b) => scores[a][prev] - scores[b][prev]);
+    oi = 0; turn = playOrder[0];
     shopIdx = 0; openShop(); return;
   }
+  turn = playOrder[oi];
   beginTurn();
 }
 function openShop() {
@@ -939,6 +1019,11 @@ function drawWorld(s, y0, y1) {
   const bb = h.bb, T = h.theme;
   const poly = (pts) => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); };
   ctx.fillStyle = T.ground; ctx.fillRect(bb.x0 - 400, bb.y0 - 400, bb.x1 - bb.x0 + 800, bb.y1 - bb.y0 + 800);
+  poly(h.corPoly);
+  ctx.save(); ctx.fillStyle = h.roughCol || T.rough; ctx.fill('nonzero'); ctx.clip('nonzero');
+  ctx.fillStyle = 'rgba(255,255,255,.035)';
+  for (let y = Math.floor(y0 / 16) * 16; y < y1; y += 16) ctx.fillRect(bb.x0, y, bb.x1 - bb.x0, 8);
+  ctx.restore();
   if (h.sea) {
     poly(h.seaPoly); ctx.fillStyle = '#2a78b8'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 1.4 * px;
@@ -948,13 +1033,8 @@ function drawWorld(s, y0, y1) {
         const x = p.x + d.nx * h.sea * o, y = p.y + d.ny * h.sea * o; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
       ctx.stroke();
     });
-    poly(h.beachPoly); ctx.fillStyle = '#ecd9a4'; ctx.fill();
+    if (h.bw > 0) { poly(h.beachPoly); ctx.fillStyle = '#ecd9a4'; ctx.fill(); }
   }
-  poly(h.corPoly);
-  ctx.save(); ctx.fillStyle = T.rough; ctx.fill('nonzero'); ctx.clip('nonzero');
-  ctx.fillStyle = 'rgba(255,255,255,.035)';
-  for (let y = Math.floor(y0 / 16) * 16; y < y1; y += 16) ctx.fillRect(bb.x0, y, bb.x1 - bb.x0, 8);
-  ctx.restore();
   ctx.fillStyle = '#ffffff';
   h.corPoly.forEach((p, i) => { if (h.sea && seaSide(p.x, p.y)) return; if (i % 2 || p.y < y0 - 5 || p.y > y1 + 5 || fwDist(p.x, p.y, h.cor) < CORR - 1) return; ctx.fillRect(p.x - 1.5 * px, p.y - 1.5 * px, 3 * px, 3 * px); });
   poly(h.fwPoly);
@@ -974,6 +1054,7 @@ function drawWorld(s, y0, y1) {
     ctx.restore();
   });
   const g = h.green;
+  h.water.forEach(w => { if (w.pad > 2.5) { ellipse(g, w.pad + .6); ctx.fillStyle = T.shore; ctx.fill(); ellipse(g, w.pad); ctx.fillStyle = h.roughCol || T.rough; ctx.fill(); } });
   ellipse(g, 2.5); ctx.fillStyle = T.fringe; ctx.fill();
   ctx.save(); ellipse(g); ctx.fillStyle = T.green; ctx.fill(); ctx.clip();
   ctx.fillStyle = 'rgba(255,255,255,.07)';
@@ -1187,8 +1268,8 @@ function renderNames() {
 }
 $('npOpts').addEventListener('change', renderNames);
 renderNames();
-const COURSE_NAMES = { 'K9-1207': 'Möwenklippe', 'P6-3141': 'Eichenpark', 'W6-2718': 'Tannenschlucht', 'D3-5772': 'Oase Dorado', 'M9-8080': 'Grand Tour' };
-const TDESC = { P: 'Park: breite Fairways, Bäume, Teiche.', K: 'Küste: Meer an einer Seite, Strand, Dünen und viel Wind.', W: 'Wald: enge Fairways, viele Bäume und Doglegs, wenig Wind.', D: 'Wüste: Sand statt Rough, Kakteen und Oasen.', M: 'Mix: jedes Loch in einer anderen Landschaft.' };
+const COURSE_NAMES = { 'C9-2026': 'Championship', 'K9-1207': 'Möwenklippe', 'P6-3141': 'Eichenpark', 'W6-2718': 'Tannenschlucht', 'D3-5772': 'Oase Dorado', 'M9-8080': 'Grand Tour' };
+const TDESC = { C: 'Championship: 9 einzigartige, sehr schwere Löcher mit Inselgrün, Fairway-Inseln, Wasser auf ganzer Länge, 90-Grad-Dogleg, Waldschneise, Bunkermeer und mehr. Kleine, schnelle Grüns.', P: 'Park: breite Fairways, Bäume, Teiche.', K: 'Küste: Meer an einer Seite, Strand, Dünen und viel Wind.', W: 'Wald: enge Fairways, viele Bäume und Doglegs, wenig Wind.', D: 'Wüste: Sand statt Rough, Kakteen und Oasen.', M: 'Mix: jedes Loch in einer anderen Landschaft.' };
 function chosen(name, def) { const c = document.querySelector('input[name="' + name + '"]:checked'); return c ? c.value : def; }
 function updateCourseUI() {
   const v = $('course').value, named = v !== 'random' && v !== 'code';
@@ -1216,7 +1297,7 @@ $('setupForm').addEventListener('submit', e => {
     cfg = { theme: chosen('theme', 'P'), holes: hc ? +hc.value : 3, seed: 10000 + Math.floor(Math.random() * 89999), name: '' };
   } else {
     const c = parseCode(cv === 'code' ? $('codeIn').value : cv);
-    if (!c) { $('courseInfo').textContent = 'Dieser Code passt nicht. Er sieht so aus: Buchstabe (P, K, W, D oder M), Lochanzahl, Bindestrich, Zahl, z. B. K9-48213.'; $('codeIn').focus(); return; }
+    if (!c) { $('courseInfo').textContent = 'Dieser Code passt nicht. Er sieht so aus: Buchstabe (P, K, W, D, M oder C), Lochanzahl, Bindestrich, Zahl, z. B. K9-48213.'; $('codeIn').focus(); return; }
     cfg = { ...c, name: COURSE_NAMES[cv] || '' };
   }
   cfg.mode = chosen('mode', 'stroke');
