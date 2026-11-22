@@ -111,7 +111,7 @@ button.go:active{transform:translateY(1px)}
 #pwLbl{position:fixed;z-index:2;pointer-events:none;left:max(8px,env(safe-area-inset-left,0px));width:40px;text-align:center;bottom:calc(env(safe-area-inset-bottom,0px) + 46px);font:800 16px var(--f-display);font-variant-numeric:tabular-nums;color:var(--gold);text-shadow:0 1px 2px rgba(0,0,0,.6)}
 .holes{border:0;margin:0;padding:0;display:grid;gap:8px}
 .holes legend{padding:0;margin-bottom:8px;font:600 13px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
-.holes .opts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.holes .opts{display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:8px}
 .holes label{position:relative}
 .holes input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
 .holes span{display:block;text-align:center;padding:10px 0;border-radius:10px;background:var(--board-2);font:800 22px var(--f-display);font-variant-numeric:tabular-nums}
@@ -139,14 +139,21 @@ button.go:active{transform:translateY(1px)}
 
 <div class="overlay" id="setup">
   <form class="card" id="setupForm">
-    <div class="eyebrow">3 Spieler · bis zu 9 Löcher</div>
+    <div class="eyebrow">1–6 Spieler · bis zu 9 Löcher</div>
     <h1>Flick<br><span>Golf</span></h1>
-    <p>Spiel jedes Loch mit so wenigen Schlägen wie möglich. Alle drei spielen dasselbe Loch bei gleichem Wind. Wer am Ende die wenigsten Schläge hat, gewinnt.</p>
-    <div class="names">
-      <label><span class="dot" style="background:#e63b2e"></span><input id="n0" maxlength="14" value="Spieler 1" aria-label="Name Spieler 1"></label>
-      <label><span class="dot" style="background:#2f7de1"></span><input id="n1" maxlength="14" value="Spieler 2" aria-label="Name Spieler 2"></label>
-      <label><span class="dot" style="background:#f2c230"></span><input id="n2" maxlength="14" value="Spieler 3" aria-label="Name Spieler 3"></label>
-    </div>
+    <p>Spiel jedes Loch mit so wenigen Schlägen wie möglich. Alle spielen dasselbe Loch bei gleichem Wind. Wer am Ende die wenigsten Schläge hat, gewinnt.</p>
+    <fieldset class="holes">
+      <legend>Wie viele Spieler?</legend>
+      <div class="opts" style="--n:6" id="npOpts">
+        <label><input type="radio" name="np" id="p1" value="1"><span>1</span></label>
+        <label><input type="radio" name="np" id="p2" value="2"><span>2</span></label>
+        <label><input type="radio" name="np" id="p3" value="3" checked><span>3</span></label>
+        <label><input type="radio" name="np" id="p4" value="4"><span>4</span></label>
+        <label><input type="radio" name="np" id="p5" value="5"><span>5</span></label>
+        <label><input type="radio" name="np" id="p6" value="6"><span>6</span></label>
+      </div>
+    </fieldset>
+    <div class="names" id="names"></div>
     <fieldset class="holes">
       <legend>Wie viele Löcher?</legend>
       <div class="opts">
@@ -209,8 +216,9 @@ button.go:active{transform:translateY(1px)}
 "use strict";
 const $ = id => document.getElementById(id);
 const cvs = $('c'), ctx = cvs.getContext('2d');
-const PCOL = ['#e63b2e', '#2f7de1', '#f2c230'];
-const NP = 3, MAX_STROKES = 10, HOLE_CHOICES = [1, 3, 6, 9];
+const PCOL = ['#e63b2e', '#2f7de1', '#f2c230', '#9b5de5', '#ff8c2e', '#2ec4b6'];
+const MAX_STROKES = 10;
+let NP = 3;
 let ROUNDS = 3;
 const D2R = Math.PI / 180;
 const G = 9.81, TS = 1.7, WK = 0.42, SPK = 2.6, OBX = 38, FWH = 13;
@@ -665,7 +673,7 @@ function gameOver() {
     li.append(a, b, c, d); ol.append(li);
   });
   const winners = order.filter(o => o.t === order[0].t).map(o => o.n);
-  $('winTitle').textContent = winners.length > 1 ? 'Gleichstand: ' + winners.join(' & ') : winners[0] + ' gewinnt!';
+  $('winTitle').textContent = NP === 1 ? 'Geschafft: ' + order[0].t + ' Schläge' : winners.length > 1 ? 'Gleichstand: ' + winners.join(' & ') : winners[0] + ' gewinnt!';
   $('over').hidden = false;
   sCup();
 }
@@ -891,13 +899,32 @@ cvs.addEventListener('pointercancel', () => { drag = null; spinDrag = null; });
 
 /* ---------- Buttons ---------- */
 try { const hs = localStorage.getItem('flickgolf-holes'); if (hs && $('h' + hs)) $('h' + hs).checked = true; } catch (e) {}
-try { const saved = JSON.parse(localStorage.getItem('flickgolf-names') || 'null'); if (Array.isArray(saved)) saved.forEach((n, i) => { if ($('n' + i) && n) $('n' + i).value = n; }); } catch (e) {}
+let nameCache = ['Spieler 1', 'Spieler 2', 'Spieler 3', 'Spieler 4', 'Spieler 5', 'Spieler 6'];
+try { const saved = JSON.parse(localStorage.getItem('flickgolf-names') || 'null'); if (Array.isArray(saved)) saved.forEach((n, i) => { if (n && i < 6) nameCache[i] = n; }); } catch (e) {}
+try { const ps = localStorage.getItem('flickgolf-np'); if (ps && $('p' + ps)) $('p' + ps).checked = true; } catch (e) {}
+function chosenNP() { const c = document.querySelector('input[name="np"]:checked'); return c ? +c.value : 3; }
+function renderNames() {
+  const box = $('names');
+  box.querySelectorAll('input').forEach((inp, i) => { nameCache[i] = inp.value; });
+  box.innerHTML = '';
+  for (let i = 0; i < chosenNP(); i++) {
+    const lab = document.createElement('label');
+    const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = PCOL[i];
+    const inp = document.createElement('input'); inp.id = 'n' + i; inp.maxLength = 14; inp.value = nameCache[i];
+    inp.setAttribute('aria-label', 'Name Spieler ' + (i + 1));
+    lab.append(dot, inp); box.append(lab);
+  }
+}
+$('npOpts').addEventListener('change', renderNames);
+renderNames();
 $('setupForm').addEventListener('submit', e => {
   e.preventDefault(); audio();
-  const names = [0, 1, 2].map(i => ($('n' + i).value || '').trim() || 'Spieler ' + (i + 1));
+  NP = chosenNP();
+  const names = Array.from({ length: NP }, (_, i) => ($('n' + i).value || '').trim() || 'Spieler ' + (i + 1));
+  names.forEach((n, i) => { nameCache[i] = n; });
   const hc = document.querySelector('input[name="holes"]:checked');
   ROUNDS = hc ? +hc.value : 3;
-  try { localStorage.setItem('flickgolf-names', JSON.stringify(names)); localStorage.setItem('flickgolf-holes', String(ROUNDS)); } catch (er) {}
+  try { localStorage.setItem('flickgolf-names', JSON.stringify(nameCache)); localStorage.setItem('flickgolf-np', String(NP)); localStorage.setItem('flickgolf-holes', String(ROUNDS)); } catch (er) {}
   $('setup').hidden = true; startGame(names);
 });
 $('introBtn').addEventListener('click', () => { audio(); $('intro').hidden = true; beginTurn(); });
