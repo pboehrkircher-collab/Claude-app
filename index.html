@@ -117,6 +117,13 @@ button.go:active{transform:translateY(1px)}
 .holes span{display:block;text-align:center;padding:10px 0;border-radius:10px;background:var(--board-2);font:800 22px var(--f-display);font-variant-numeric:tabular-nums}
 .holes input:checked + span{background:var(--gold);color:#1b2a12}
 .holes input:focus-visible + span{outline:3px solid #fff;outline-offset:2px}
+#ovBtn{position:fixed;z-index:3;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 70px);
+  appearance:none;display:inline-flex;align-items:center;gap:8px;border:2px solid #ffffff;border-radius:999px;background:rgba(14,58,43,.9);color:#ffffff;
+  font:800 15px var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:8px 14px 8px 10px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+#ovBtn svg{width:20px;height:20px;flex:none}
+#ovBtn[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#1b2a12}
+#ovBtn[aria-pressed="true"] path{stroke:#1b2a12}
+#ovBtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
 @media (prefers-reduced-motion: reduce){#msg.pulse,.wind.storm{animation:none}.wind svg{transition:none}}
 </style>
 </head><!--strip-->
@@ -136,6 +143,7 @@ button.go:active{transform:translateY(1px)}
 <div id="power" hidden aria-hidden="true"><div id="pwFill"></div><div id="pwMark"></div></div>
 <div id="pwLbl" hidden aria-hidden="true">0%</div>
 <div id="pwClub" hidden aria-hidden="true">Driver</div>
+<button id="ovBtn" type="button" aria-pressed="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="ovLbl">Ganzes Loch</span></button>
 
 <div class="overlay" id="setup">
   <form class="card" id="setupForm">
@@ -230,7 +238,7 @@ let baseWind = { x: 0, y: 0, s: 0, a: 0 }, wind = { x: 0, y: 0, s: 0, a: 0 };
 let state = 'setup', ball = null, hazardOrder = [], tNow = 0, strokes = 0, club = null, lastPos = null;
 let drag = null, spinDrag = null, aimAng = 0, charge = 0;
 let coins = [], upg = [], shopIdx = 0;
-let cam = { bottom: -10, span: 200, cx: 0 };
+let cam = { bottom: -10, span: 200, cx: 0 }, overview = false;
 const particles = [];
 
 const UPGRADES = [
@@ -499,7 +507,7 @@ function beginTurn() {
   ball = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, side: 0, back: 0, spun: false, first: true, trail: [], lie: 'tee' };
   strokes = 0; lastPos = { x: 0, y: 0 };
   wind = { ...baseWind };
-  cam.bottom = -10;
+  cam.bottom = -10; setOverview(false);
   renderBoard();
   nextStroke(true);
 }
@@ -696,7 +704,7 @@ function resize() {
 const BOT = 64;
 function viewTop() { return $('hud').hidden ? 20 : $('hud').getBoundingClientRect().bottom + 10; }
 function camTarget() {
-  if (!ball) return { bottom: -10, span: hole.L + 45, cx: 0 };
+  if (!ball || overview) return { bottom: -10, span: hole.L + 45, cx: 0 };
   const d = pinDist(ball.x, ball.y);
   let span, bottom;
   if (state === 'aim' || state === 'done') {
@@ -853,7 +861,7 @@ function frame(now) {
   }
   if (state === 'aim' && drag) { charge = chargeLevel(now); setPower(charge); }
   const showP = ['aim', 'flight', 'roll', 'done'].includes(state);
-  if ($('power').hidden === showP) { $('power').hidden = !showP; $('pwLbl').hidden = !showP; $('pwClub').hidden = !showP; }
+  if ($('power').hidden === showP) { $('power').hidden = !showP; $('pwLbl').hidden = !showP; $('pwClub').hidden = !showP; $('ovBtn').hidden = !showP; if (!showP) setOverview(false); }
   if (state === 'aim') pinMark();
   render(); requestAnimationFrame(frame);
 }
@@ -872,8 +880,15 @@ function pinMark() {
 }
 function chargeLevel(now) { const T = CHARGE_T * (has('calm') ? 1.65 : 1); const u = ((now - drag.t0) / 1000 / T) % 2; return u < 1 ? u : 2 - u; }
 function pos(e) { const r = cvs.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() }; }
+function setOverview(on) {
+  overview = on;
+  $('ovBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+  $('ovLbl').textContent = on ? 'Zurück zum Ball' : 'Ganzes Loch';
+}
+$('ovBtn').addEventListener('click', () => { audio(); setOverview(!overview); });
 cvs.addEventListener('pointerdown', e => {
   audio();
+  if (overview) { setOverview(false); return; }
   if (state === 'aim' && !drag) { const p = pos(e); drag = { id: e.pointerId, start: p, base: aimAng, t0: p.t }; cvs.setPointerCapture(e.pointerId); }
   else if (state === 'flight' && !ball.spun) { const p = pos(e); spinDrag = { id: e.pointerId, start: p }; cvs.setPointerCapture(e.pointerId); }
 });
