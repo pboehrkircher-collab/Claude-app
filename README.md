@@ -8,9 +8,8 @@ Kleines Golf-Handyspiel für 3 Spieler, komplett in einer Datei (`index.html`), 
 ## Regeln
 - 3 Spieler, 3 Runden, jede Runde ein neues Loch (110–150 m) mit eigenem Wind.
 - Reihenfolge: Spieler 1, 2, 3 schlagen je einmal, dann folgt Runde 2 usw.
-- **Abschlag:** schnell nach oben wischen. Tempo = Kraft, Richtung = Ziel.
+- **Abschlag:** Finger gedrückt halten, die Energieleiste lädt auf und wieder ab (Markierung = ungefähr Fahnen-Distanz ohne Wind). Zum Zielen den Finger nach links/rechts schieben, loslassen = Schlag.
 - **Effet:** während der Ball fliegt einmal wischen – seitlich = Kurve, nach unten = Backspin, nach oben = Topspin.
 - Gemessen wird die Distanz zur Fahne. Wasser/Aus = 50 m Strafe, eingelocht = 0 m.
 - Gewinner ist, wer nach 3 Schlägen die kleinste Gesamtdistanz hat.
 - **Pro-Shop:** Nach Runde 1 und 2 kauft jeder Spieler mit verdienten Spielmünzen Upgrades (Kraftpaket, Windschutz, Spin-Meister, Soft-Ball, Glücks-Loch). Münzen: je näher an der Fahne, desto mehr; eingelocht = 120. Kein echtes Geld.
-- **Werbung:** Nach jedem Schlag läuft eine 30-Sekunden-Video-Anzeige für Kingshot, überspringbar nach 10 Sekunden. Video-Datei: `ads/kingshot-gameplay.mp4` (siehe `ads/README.md`), sonst animierter Platzhalter.
