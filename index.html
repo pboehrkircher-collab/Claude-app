@@ -47,6 +47,9 @@ body{background:var(--forest);color:var(--ink);font-family:var(--f-body);-webkit
 #board{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
 #board th{font-family:var(--f-display);font-weight:600;letter-spacing:.08em;color:var(--muted);text-align:right;padding:0 6px;font-size:12px}
 #board th:first-child{text-align:left}
+#board.many th,#board.many td{padding-left:2px;padding-right:2px}
+#board.many td{font-size:14px}
+#board.many td.name{max-width:24vw;font-size:12px}
 #board td{padding:2px 6px;text-align:right;font-family:var(--f-display);font-weight:600;font-size:16px;border-top:1px solid rgba(255,255,255,.08)}
 #board td.name{text-align:left;font-family:var(--f-body);font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
 #board td.sum{color:var(--gold)}
@@ -106,6 +109,14 @@ button.go:active{transform:translateY(1px)}
 #pwMark{position:absolute;left:-2px;right:-2px;height:0;border-top:2px dashed #ffffff}
 #pwMark::after{content:"";position:absolute;right:2px;top:-7px;border:6px solid transparent;border-right-color:#ffffff;border-left:0}
 #pwLbl{position:fixed;z-index:2;pointer-events:none;left:max(8px,env(safe-area-inset-left,0px));width:40px;text-align:center;bottom:calc(env(safe-area-inset-bottom,0px) + 46px);font:800 16px var(--f-display);font-variant-numeric:tabular-nums;color:var(--gold);text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.holes{border:0;margin:0;padding:0;display:grid;gap:8px}
+.holes legend{padding:0;margin-bottom:8px;font:600 13px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.holes .opts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.holes label{position:relative}
+.holes input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.holes span{display:block;text-align:center;padding:10px 0;border-radius:10px;background:var(--board-2);font:800 22px var(--f-display);font-variant-numeric:tabular-nums}
+.holes input:checked + span{background:var(--gold);color:#1b2a12}
+.holes input:focus-visible + span{outline:3px solid #fff;outline-offset:2px}
 @media (prefers-reduced-motion: reduce){#msg.pulse,.wind.storm{animation:none}.wind svg{transition:none}}
 </style>
 </head><!--strip-->
@@ -128,21 +139,30 @@ button.go:active{transform:translateY(1px)}
 
 <div class="overlay" id="setup">
   <form class="card" id="setupForm">
-    <div class="eyebrow">3 Spieler · 3 Löcher</div>
+    <div class="eyebrow">3 Spieler · bis zu 9 Löcher</div>
     <h1>Flick<br><span>Golf</span></h1>
-    <p>Spiel jedes Loch mit so wenigen Schlägen wie möglich. Wer nach drei Löchern die wenigsten Schläge hat, gewinnt.</p>
+    <p>Spiel jedes Loch mit so wenigen Schlägen wie möglich. Alle drei spielen dasselbe Loch bei gleichem Wind. Wer am Ende die wenigsten Schläge hat, gewinnt.</p>
     <div class="names">
       <label><span class="dot" style="background:#e63b2e"></span><input id="n0" maxlength="14" value="Spieler 1" aria-label="Name Spieler 1"></label>
       <label><span class="dot" style="background:#2f7de1"></span><input id="n1" maxlength="14" value="Spieler 2" aria-label="Name Spieler 2"></label>
       <label><span class="dot" style="background:#f2c230"></span><input id="n2" maxlength="14" value="Spieler 3" aria-label="Name Spieler 3"></label>
     </div>
+    <fieldset class="holes">
+      <legend>Wie viele Löcher?</legend>
+      <div class="opts">
+        <label><input type="radio" name="holes" id="h1" value="1"><span>1</span></label>
+        <label><input type="radio" name="holes" id="h3" value="3" checked><span>3</span></label>
+        <label><input type="radio" name="holes" id="h6" value="6"><span>6</span></label>
+        <label><input type="radio" name="holes" id="h9" value="9"><span>9</span></label>
+      </div>
+    </fieldset>
     <ol class="how">
       <li><b>Schlagen:</b> Finger auf den Platz drücken und halten. Die Energieleiste lädt auf und wieder ab, die Markierung zeigt ungefähr die Kraft bis zur Fahne. Zum Zielen den Finger nach links oder rechts schieben. Loslassen = Schlag. Der Schläger wird automatisch gewählt.</li>
       <li><b>Effet:</b> Solange der Ball fliegt, einmal wischen. Seitlich = Kurve, nach unten = Backspin, nach oben = Topspin.</li>
       <li><b>Wind:</b> Achte auf Pfeil, Fahne und Windstreifen. Bei jedem Schlag kann eine Böe kommen.</li>
       <li><b>Reihenfolge:</b> Jeder spielt das Loch, bis er eingelocht hat, dann ist der Nächste dran.</li>
     </ol>
-    <p>Wasser oder Aus: ein Strafschlag, der Ball kommt an die alte Stelle zurück. Höchstens 10 Schläge pro Loch. Nach Loch 1 und 2 gibt es Münzen für den Pro-Shop.</p>
+    <p>Wasser oder Aus: ein Strafschlag, der Ball kommt an die alte Stelle zurück. Höchstens 10 Schläge pro Loch. Nach jedem Loch außer dem letzten öffnet der Pro-Shop.</p>
     <button class="go" type="submit">Spiel starten</button>
   </form>
 </div>
@@ -190,7 +210,8 @@ button.go:active{transform:translateY(1px)}
 const $ = id => document.getElementById(id);
 const cvs = $('c'), ctx = cvs.getContext('2d');
 const PCOL = ['#e63b2e', '#2f7de1', '#f2c230'];
-const ROUNDS = 3, NP = 3, MAX_STROKES = 10;
+const NP = 3, MAX_STROKES = 10, HOLE_CHOICES = [1, 3, 6, 9];
+let ROUNDS = 3;
 const D2R = Math.PI / 180;
 const G = 9.81, TS = 1.7, WK = 0.42, SPK = 2.6, OBX = 38, FWH = 13;
 const HOLE_R = 0.32, CHARGE_T = 1.15;
@@ -302,9 +323,11 @@ function newHole() {
   const wa = rnd(0, Math.PI * 2), ws = rnd(2, 8);
   baseWind = { x: Math.sin(wa) * ws, y: Math.cos(wa) * ws, s: ws, a: wa };
   wind = { ...baseWind };
+  // gusts are fixed per stroke number, so every player gets the same conditions on this hole
+  hole.gusts = Array.from({ length: MAX_STROKES + 12 }, () => ({ a: wa + rnd(-.3, .3), s: clamp(ws * rnd(.7, 1.3), 0, 11) }));
 }
-function gust() {
-  const a = baseWind.a + rnd(-.3, .3), s = clamp(baseWind.s * rnd(.7, 1.3), 0, 11);
+function gust(i) {
+  const g = hole.gusts[Math.min(i, hole.gusts.length - 1)], a = g.a, s = g.s;
   const prev = wind.s;
   wind = { x: Math.sin(a) * s, y: Math.cos(a) * s, s, a };
   return s - prev > 1.2;
@@ -445,7 +468,10 @@ function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.fl
 function startGame(names) {
   players = names; scores = names.map(() => Array(ROUNDS).fill(null));
   coins = names.map(() => 40); upg = names.map(() => new Set());
-  round = 0; turn = 0; pars = shuffle([3, 4, 5]); hazardOrder = shuffle(['creek', 'pond', 'lake']);
+  round = 0; turn = 0; pars = []; hazardOrder = [];
+  while (pars.length < ROUNDS) { pars.push(...shuffle([3, 4, 5])); hazardOrder.push(...shuffle(['creek', 'pond', 'lake'])); }
+  pars.length = ROUNDS; hazardOrder.length = ROUNDS;
+  $('board').classList.toggle('many', ROUNDS > 4);
   newHole();
   $('hud').hidden = false; renderBoard(); showIntro();
 }
@@ -464,6 +490,7 @@ function showIntro() {
 function beginTurn() {
   ball = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, side: 0, back: 0, spun: false, first: true, trail: [], lie: 'tee' };
   strokes = 0; lastPos = { x: 0, y: 0 };
+  wind = { ...baseWind };
   cam.bottom = -10;
   renderBoard();
   nextStroke(true);
@@ -474,7 +501,7 @@ function nextStroke(first) {
   lastPos = { x: ball.x, y: ball.y };
   club = pickClub();
   aimAng = Math.atan2(hole.pin.x - ball.x, hole.pin.y - ball.y);
-  const boe = !first && gust();
+  const boe = !first && gust(strokes);
   state = 'aim'; drag = null; spinDrag = null; charge = 0; setPower(0);
   updateHud(); renderBoard();
   const d = pinDist(ball.x, ball.y);
@@ -496,7 +523,7 @@ function rel(n) { return n === 0 ? 'E' : (n > 0 ? '+' : '') + n; }
 function renderBoard() {
   const head = $('boardHead'); head.innerHTML = '';
   const hr = document.createElement('tr');
-  ['Spieler', ...pars.map((p, r) => 'L' + (r + 1) + ' P' + p), 'Σ'].forEach(t => { const th = document.createElement('th'); th.textContent = t; hr.append(th); });
+  ['Spieler', ...pars.map((p, r) => ROUNDS > 4 ? String(r + 1) : 'L' + (r + 1) + ' P' + p), 'Σ'].forEach(t => { const th = document.createElement('th'); th.textContent = t; hr.append(th); });
   head.append(hr);
   const tb = $('boardBody'); tb.innerHTML = '';
   players.forEach((n, p) => {
@@ -515,7 +542,7 @@ function renderBoard() {
       tr.append(td);
     }
     const ts = document.createElement('td'); ts.className = 'sum';
-    const t = total(p); ts.textContent = t ? t + ' (' + rel(t - parSoFar(p)) + ')' : '–'; tr.append(ts);
+    const t = total(p); ts.textContent = t ? (ROUNDS > 4 ? String(t) : t + ' (' + rel(t - parSoFar(p)) + ')') : '–'; tr.append(ts);
     tb.append(tr);
   });
 }
@@ -575,7 +602,7 @@ function holeDone(capped) {
   const sm = document.createElement('small'); sm.textContent = n === 1 ? 'Schlag' : 'Schläge'; $('resBig').append(sm);
   $('resText').textContent = (capped ? 'Maximum von ' + MAX_STROKES + ' Schlägen erreicht. ' : scoreName(n, hole.par) + ' ') + '+' + got + ' Münzen.';
   const last = turn === NP - 1 && round === ROUNDS - 1;
-  $('resBtn').textContent = last ? 'Endstand zeigen' : (turn === NP - 1 ? 'Weiter zum Pro-Shop' : 'Weiter: ' + players[turn + 1]);
+  $('resBtn').textContent = last ? 'Endstand zeigen' : (turn === NP - 1 ? 'Weiter zum Pro-Shop' : 'Weiter: ' + players[turn + 1] + ' (gleiches Loch)');
   $('result').hidden = false; $('resBtn').focus({ preventScroll: true });
 }
 function nextTurn() {
@@ -863,11 +890,14 @@ cvs.addEventListener('pointerup', endPointer);
 cvs.addEventListener('pointercancel', () => { drag = null; spinDrag = null; });
 
 /* ---------- Buttons ---------- */
+try { const hs = localStorage.getItem('flickgolf-holes'); if (hs && $('h' + hs)) $('h' + hs).checked = true; } catch (e) {}
 try { const saved = JSON.parse(localStorage.getItem('flickgolf-names') || 'null'); if (Array.isArray(saved)) saved.forEach((n, i) => { if ($('n' + i) && n) $('n' + i).value = n; }); } catch (e) {}
 $('setupForm').addEventListener('submit', e => {
   e.preventDefault(); audio();
   const names = [0, 1, 2].map(i => ($('n' + i).value || '').trim() || 'Spieler ' + (i + 1));
-  try { localStorage.setItem('flickgolf-names', JSON.stringify(names)); } catch (er) {}
+  const hc = document.querySelector('input[name="holes"]:checked');
+  ROUNDS = hc ? +hc.value : 3;
+  try { localStorage.setItem('flickgolf-names', JSON.stringify(names)); localStorage.setItem('flickgolf-holes', String(ROUNDS)); } catch (er) {}
   $('setup').hidden = true; startGame(names);
 });
 $('introBtn').addEventListener('click', () => { audio(); $('intro').hidden = true; beginTurn(); });
