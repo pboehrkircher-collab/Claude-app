@@ -6,10 +6,10 @@ Kleines Golf-Handyspiel für 3 Spieler, komplett in einer Datei (`index.html`), 
 `index.html` im Browser öffnen (oder per GitHub Pages bereitstellen und auf dem Handy „Zum Home-Bildschirm“ hinzufügen).
 
 ## Regeln
-- 3 Spieler, 3 Runden, jede Runde ein neues Loch (110–150 m) mit eigenem Wind.
-- Reihenfolge: Spieler 1, 2, 3 schlagen je einmal, dann folgt Runde 2 usw.
-- **Abschlag:** Finger gedrückt halten, die Energieleiste lädt auf und wieder ab (Markierung = ungefähr Fahnen-Distanz ohne Wind). Zum Zielen den Finger nach links/rechts schieben, loslassen = Schlag.
+- 3 Spieler, 3 Löcher (Par 3, 4 und 5 in zufälliger Reihenfolge, 165–510 m), jedes mit eigenem Wind und Böen.
+- Jeder Spieler spielt das Loch, bis er eingelocht hat (höchstens 10 Schläge), dann ist der Nächste dran.
+- **Schlagen:** Finger gedrückt halten, die Energieleiste lädt auf und wieder ab (Markierung ≈ Kraft bis zur Fahne, ohne Wind). Zum Zielen den Finger nach links/rechts schieben, loslassen = Schlag. Der Schläger (Driver, Eisen, Wedge, Putter) wird automatisch gewählt.
 - **Effet:** während der Ball fliegt einmal wischen – seitlich = Kurve, nach unten = Backspin, nach oben = Topspin.
-- Gemessen wird die Distanz zur Fahne. Wasser/Aus = 50 m Strafe, eingelocht = 0 m.
-- Gewinner ist, wer nach 3 Schlägen die kleinste Gesamtdistanz hat.
-- **Pro-Shop:** Nach Runde 1 und 2 kauft jeder Spieler mit verdienten Spielmünzen Upgrades (Kraftpaket, Windschutz, Spin-Meister, Soft-Ball, Glücks-Loch). Münzen: je näher an der Fahne, desto mehr; eingelocht = 120. Kein echtes Geld.
+- **Wind:** Anzeige oben, Pfeil am Ball, wehende Fahne und Windstreifen. Rough und Bunker kosten Weite.
+- Wasser/Aus = 1 Strafschlag, zurück an die alte Stelle. Wer nach 3 Löchern die wenigsten Schläge hat, gewinnt.
+- **Pro-Shop:** Nach Loch 1 und 2 kauft jeder mit Spielmünzen Upgrades: Kraftpaket (+20 % Weite), Windschutz (Wind nur 30 %), Spin-Meister (Effet ×1,8, bleibt beim Rollen), Riesen-Loch (3× so groß), Zielfernrohr (Landepunkt-Vorschau), Magnetball, Ruhige Hand, Soft-Ball, Freischlag. Kein echtes Geld.
